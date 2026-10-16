@@ -2,55 +2,60 @@
 
 ## Goal
 
-Make the repo something you can hand over and narrate in under ten minutes. Update the architecture doc so it matches the code.
+Make the repo something you can hand over and narrate in under ten minutes. Update the architecture doc so it matches the code. Leave a friction log you can defend line by line.
 
 ## Maps to
 
-Deliverable 1 (final doc), deliverable 3 (the recording script), and the decision write-up inside deliverable 2.
+Deliverable 1 (final architecture doc), deliverable 3 (the recording script), and the friction log the assignment asks for in the presentation.
 
 ## Read first
 
-The code, `docs/eval-results.md`, and `plans/00-scope.md`.
+The code, `docs/eval-results.md`, `docs/friction-log.md`, and `plans/00-scope.md`.
 
 ## Out of scope
 
 - Recording the video.
-- The reveal.js deck (step 5, and even that is only an outline).
+- The deck (step 5 is an outline only).
 - New agent behaviour. If a demo path is broken, fix that bug and stop.
+- Standing up LangSmith in Kubernetes.
 
 ## Revise the docs
 
-Update `docs/architecture.md` where the draft drifted: real node names, where the checkpoint lives locally, the LangSmith project name, and the eval results as evidence for the failure-mode section.
+Update `docs/architecture.md` where the draft drifted: real node names, MemorySaver as the local checkpointer, project name `triage`, the sink repo, and the eval results as evidence for the failure-mode section.
 
-Add to `docs/decisions.md` only if a decision changed during the build. Note one thing you would do with another week: promote the failed traces from the experiment into the dataset, and gate merges on the code graders.
+Update `docs/decisions.md` only if a decision changed during the build. Add one "another week" note: promote failed experiment traces into the dataset, and run `category_exact` and `did_not_post` in CI.
+
+`docs/friction-log.md` must contain at least three entries from this build. Each entry: what you tried, what the framework did, what you did instead, what you wish existed. Drop any entry you cannot point at in a trace, a docstring, or a commit. If you have fewer than three, use the product once more until you do. Do not pad with generic complaints.
 
 Add `docs/running.md`:
 
-- Python version, install, `.env` keys.
+- Python version, install, `.env` keys (`LANGSMITH_*`, `MODEL`, `GITHUB_TOKEN`, `GITHUB_SINK_REPO`).
 - `langgraph dev` for Studio.
-- CLI examples for the three paths, including approve and reject.
-- How to sync the dataset and run both experiment variants.
-- A line that LangSmith itself is assumed to be already up, with `LANGSMITH_ENDPOINT` optional for a self-hosted instance.
+- CLI examples for the three smoke issues, including approve, edit, and reject on the same thread.
+- How to rebuild the dataset, sync it, and run both experiment variants.
+- How to run `evals/edit_distance.py`.
+- One line that the LangSmith in `.env` is the tracing project, and Part 1 is the design for a separate self-hosted instance that this repo does not install.
 
-Keep the interview brief in the root `README.md`. Add a short pointer at the top to `docs/running.md`, `docs/architecture.md`, and `docs/eval-results.md`.
+Keep both briefs. Add a short pointer at the top of the root `README.md` to `docs/running.md`, `docs/architecture.md`, and `docs/eval-results.md`.
 
 ## Write `demo/script.md`
 
-A timed script, 8 minutes, so a 5–10 minute recording has room.
+A timed script, 8 minutes, so a 5–10 minute recording has room. Use the real issue numbers, the real sink repo, and the real experiment names.
 
 | Minute | On screen | Say |
 | --- | --- | --- |
-| 0:00 | Architecture diagram | Who the user is, and that the model cannot write. |
-| 1:00 | CLI or Studio, policy question | Answer cites a file. Open that file and show the sentence. |
-| 2:30 | Ticket lookup | Read-only. Show the trace's tool run. |
-| 4:00 | Refund request | Interrupt payload. Reject. Ticket unchanged. New thread, approve, ticket changed. |
-| 6:00 | LangSmith experiment | Baseline versus strict on the route grader. Read the one case the winner still misses. |
-| 7:30 | Close | What you left out on purpose: online evals, a real ticket API, deployment beyond local Studio. |
+| 0:00 | Platform diagram, then the graph | InnovateCorp hosts LangSmith. This agent is the workflow. The model cannot post. |
+| 1:00 | CLI, docs question | Draft cites a file. Open the cached doc and show the sentence. |
+| 2:30 | Similar-issue bug | Show the closed issue the retriever returned. |
+| 4:00 | Interrupt | Reject once on the same thread. No sink issue. New thread: edit one sentence, approve, open the sink issue. Source repo has no new comment. |
+| 6:00 | LangSmith | One trace with the pause. Then grounded versus ungrounded on the groundedness grader. Read the one case the winner still misses. |
+| 7:30 | Close | Edit distance if `data/reviews.jsonl` has rows. What you left out: online evals, posting to the public repo, LangSmith Deployment beyond the diagram. |
 
 End the file with a shot list (what to click) so the recording does not depend on memory.
 
 ## Done when
 
 - A cold start from `docs/running.md` reaches a traced CLI reply.
-- The architecture doc's node names match `src/desk/graph.py`.
-- `demo/script.md` is timed, uses the real ticket ids and the real experiment names, and fits in ten minutes.
+- The architecture doc's node names match `src/triage/graph.py`.
+- `docs/friction-log.md` has at least three entries you can point at.
+- `demo/script.md` is timed, uses real ids and experiment names, and fits in ten minutes.

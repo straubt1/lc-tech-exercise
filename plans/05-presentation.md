@@ -1,44 +1,49 @@
 # 05 — Presentation outline
 
-Stage 5 is a 35 minute presentation and 15 minutes of questions. This file is a slide list only. Build it later as one reveal.js HTML file. Do not design a theme, write speaker notes, or generate the deck in this step.
+The assignment asks for a 40-minute presentation to InnovateCorp's technical and business stakeholders. The live panel in the root `README.md` is 35 minutes plus 15 minutes of questions. Build one deck that covers the assignment, paced at about 32 minutes, so the same slides fit the panel slot.
+
+This file is a slide list only. Build it later as one reveal.js HTML file. Do not design a theme, write speaker notes, or generate the deck in this step.
 
 ## Deck
 
-One HTML file, `presentation/index.html`, when you eventually build it. Diagrams come from `docs/architecture.md`. Numbers come from `docs/eval-results.md`.
+One HTML file, `presentation/index.html`, when you eventually build it. Diagrams come from `docs/architecture.md`. Numbers come from `docs/eval-results.md`. Friction items come from `docs/friction-log.md`. If a number is not in those files, it does not go on a slide.
 
 | # | Slide | Content |
 | --- | --- | --- |
-| 1 | Title | Northwind Desk, one sentence on what it does. |
-| 2 | Customer problem | Time on repeated policy questions, risk on unapproved writes. |
-| 3 | What you built | Three paths: answer, lookup, approve-then-write. |
-| 4 | Architecture | Request path: user, Agent Server, files, LangSmith. |
-| 5 | Deployment target | Control plane, data plane, checkpoints, traces. Local Studio is what you ran. |
-| 6 | Graph | Nodes and the interrupt. |
-| 7 | Decision | Write tool is not on the model. Alternative was a normal tool with a prompt warning. |
-| 8 | Decision | Two specialists instead of one agent or a Deep Agent. |
-| 9 | Evals | Four failure modes, which grader covers each. |
-| 10 | Results | Baseline versus strict. The case that still fails. |
-| 11 | Scale and limits | One tenant, checkpoint database, evals off the request path. |
-| 12 | Business effect | What you would measure in production: containment on questions, write-approval rate, refund policy violations. Label these as proposed, not measured. |
-| 13 | Product feedback | Two concrete notes from using tracing, datasets, and experiments. Only notes you can point at in the UI. |
-| 14 | With more time | Failed traces back into the dataset. Code graders in CI. A real system of record. |
-| 15 | Close | What you want the panel to push on. |
-
-Target 30 minutes of talking, leaving five minutes inside the presentation block.
+| 1 | Title | Triage for InnovateCorp. One sentence: draft the first reply, a person sends it. |
+| 2 | Agenda | Part 1 platform, Part 2 agent, what the evals say, what it is worth, what the tools made hard. |
+| 3 | Why self-host | Traces and prompts stay in their project. Existing GKE, `us-central1`. |
+| 4 | Components | Frontend, backend, platform backend, queues, playground, ACE. Postgres, Redis, Cloud Storage, ClickHouse. Mark external versus in-cluster. |
+| 5 | Placement | Ingress, private data stores, two node pools, secrets. |
+| 6 | Scale | UI users versus trace rate. KEDA on the queues. ClickHouse as the stateful limit. Medium/medium year-1 point. |
+| 7 | Phase 2 | Same cluster, LangSmith Deployment, checkpoints in Postgres. Laptop is what you actually ran. |
+| 8 | The workflow | Classify, retrieve, draft, always interrupt, post only to the sink repo. |
+| 9 | Trust boundary | Write is not a tool. Source repo is read-only. Reject loops at most twice. |
+| 10 | Decision | Five nodes, not one loop, not a Deep Agent. Review and finalize are deterministic on purpose. |
+| 11 | Decision | ClickHouse in-cluster. What would move you to SmithDB or managed ClickHouse. |
+| 12 | Evals | Dataset from closed issues. The five graders and which failure each covers. Edit distance sits outside the experiment. |
+| 13 | Results | Grounded versus ungrounded. The case that still fails. Escalation precision and recall on the 16. |
+| 14 | Business effect | Measured: approval mix, edit distance, groundedness, escalation recall. Proposed, and labeled proposed: time to first reply, maintainer hours, public corrections avoided. |
+| 15 | Friction | Three entries from the log. Each one names a missing product behavior. |
+| 16 | Limits | One region, one tenant, no online evals, no public posting, label noise in the gold categories. |
+| 17 | Close | What you want the room to push on. |
 
 ## Questions to be ready for
 
-Know the answer from the code, not from this list.
+Know the answer from the doc or the code, not from this list.
 
-- Why is classify a separate node?
-- Why not bind the write as a tool and tell the model not to call it?
-- How does a thread survive the interrupt, and where would that state live when you leave your laptop?
-- What happens with two open tickets for one customer?
-- Why were those graders code instead of a judge? Where is a judge actually used?
-- What if the strict prompt wins routing and loses grounding?
-- How would you add a second tenant without mixing traces or checkpoints?
-- What did you choose not to build?
+- Why is ClickHouse in the cluster if the docs tell you to externalize storage?
+- What breaks if trace volume goes from 100 per second to the high tier?
+- Why not LangSmith Cloud with a no-train agreement instead of this design?
+- Why does every run interrupt, including high-confidence docs questions?
+- Why is `duplicate` not a classifier label?
+- How does a thread survive the interrupt on a laptop, and where does that state go in phase 2?
+- Why is the eval target not a full `invoke`? What would a premature finalize look like in a trace?
+- The gold labels are maintainer tags. When the model disagrees, which one is wrong?
+- What if groundedness goes up and reply quality goes down?
+- How would a second team get a workspace without seeing these traces?
+- Which friction-log item would you file, and what workaround did you ship?
 
 ## Done when
 
-This outline still matches the node names and the experiment you ran. No HTML yet, unless you explicitly ask for the deck in a later prompt.
+This outline still matches the node names, the platform choices, and the experiment you ran. No HTML yet, unless you explicitly ask for the deck in a later prompt.
