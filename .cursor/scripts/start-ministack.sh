@@ -35,8 +35,10 @@ fi
 
 log "Starting MiniStack on :${MINISTACK_PORT}"
 export GATEWAY_PORT="${MINISTACK_PORT}"
-ministack >/tmp/ministack.log 2>&1 &
+# nohup so the emulator survives the login shell that launches start.
+nohup ministack >/tmp/ministack.log 2>&1 &
 echo $! >/tmp/ministack.pid
+disown || true
 
 wait_for_url
 
