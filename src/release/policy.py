@@ -1,16 +1,16 @@
-"""Version-branch rules shared by load, the version agent, and release."""
+"""Version tag and release-branch rules shared by load, the version agent, and release."""
 
 import re
 from dataclasses import dataclass
 
-DEFAULT_MODULE_PATH = "/Users/tstraub/Projects/straubt1.github.com/terraform-aws-storage"
+DEFAULT_MODULE_PATH = "/workspace/terraform-aws-object-storage"
 
 NOT_RUN = "not_run"
 
 BUMPS = ("major", "minor", "patch", "none")
 
-# Exact release branch. v1.2, v1.2.3-rc1, and release/verify-v1.0.2 do not match.
-_VERSION_BRANCH = re.compile(r"^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+# Exact v-prefixed release name. v1.2, v1.2.3-rc1, and release/verify-v1.0.2 do not match.
+_VERSION_TAG = re.compile(r"^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
 RELEASE_POLICY = """
 Bump rules. Use the highest one that applies:
@@ -37,7 +37,7 @@ class VersionRef:
 
 
 def parse_version(name: str) -> tuple[int, int, int] | None:
-    match = _VERSION_BRANCH.fullmatch(name.strip())
+    match = _VERSION_TAG.fullmatch(name.strip())
     if match is None:
         return None
     major, minor, patch = (int(part) for part in match.groups())
@@ -53,7 +53,7 @@ def version_of_ref(ref: str) -> tuple[int, int, int]:
     short_name = ref.rsplit("/", 1)[-1]
     parsed = parse_version(short_name)
     if parsed is None:
-        raise ValueError(f"{ref} is not a vX.Y.Z branch")
+        raise ValueError(f"{ref} is not a vX.Y.Z version tag")
     return parsed
 
 
@@ -71,47 +71,28 @@ def next_version(version: tuple[int, int, int], bump: str) -> str:
 
 
 def version_ref_from_refname(refname: str) -> VersionRef | None:
-    """Map a full refname to a version branch, preferring nothing that is not exact."""
-    if refname.startswith("refs/heads/"):
-        short_name = refname.removeprefix("refs/heads/")
-        local = True
-        rev = short_name
-    elif refname.startswith("refs/remotes/"):
-        rest = refname.removeprefix("refs/remotes/")
-        remote, separator, short_name = rest.partition("/")
-        if not separator or not remote or not short_name or short_name == "HEAD":
-            return None
-        local = False
-        rev = f"{remote}/{short_name}"
-    else:
+    """Map a refs/tags/vX.Y.Z refname to a version tag. Peeled tag refs are ignored."""
+    if refname.endswith("^{}"):
         return None
+    if not refname.startswith("refs/tags/"):
+        return None
+    short_name = refname.removeprefix("refs/tags/")
     parsed = parse_version(short_name)
     if parsed is None:
         return None
-    return VersionRef(version=parsed, short_name=short_name, rev=rev, local=local)
-
-
-def _prefer(candidate: VersionRef, current: VersionRef) -> bool:
-    if candidate.local != current.local:
-        return candidate.local
-    candidate_origin = candidate.rev.startswith("origin/")
-    current_origin = current.rev.startswith("origin/")
-    return candidate_origin and not current_origin
+    return VersionRef(version=parsed, short_name=short_name, rev=short_name, local=True)
 
 
 def select_base_ref(refnames: list[str]) -> VersionRef:
-    """Highest vX.Y.Z ref. A local branch wins over a remote ref of the same version."""
-    chosen: dict[tuple[int, int, int], VersionRef] = {}
+    """Highest vX.Y.Z tag in refs/tags."""
+    chosen: list[VersionRef] = []
     for refname in refnames:
         item = version_ref_from_refname(refname)
-        if item is None:
-            continue
-        current = chosen.get(item.version)
-        if current is None or _prefer(item, current):
-            chosen[item.version] = item
+        if item is not None:
+            chosen.append(item)
     if not chosen:
-        raise LookupError("no vX.Y.Z branch in refs/heads or refs/remotes")
-    return chosen[max(chosen)]
+        raise LookupError("no vX.Y.Z tag in refs/tags")
+    return max(chosen, key=lambda item: item.version)
 
 
 def chosen_release_branch(

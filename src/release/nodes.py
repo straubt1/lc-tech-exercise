@@ -98,19 +98,19 @@ def short_diff(repo: Path, base_ref: str) -> tuple[list[str], str]:
 
 
 def load_node(state: ReleaseState) -> dict[str, Any]:
-    """Read the module checkout and diff HEAD against the highest vX.Y.Z ref."""
+    """Read the module checkout and diff HEAD against the highest v-prefixed version tag."""
     raw = state.get("module_path") or os.environ.get("MODULE_PATH") or DEFAULT_MODULE_PATH
     repo = Path(raw).expanduser().resolve()
     if not repo.is_dir():
         raise RuntimeError(f"MODULE_PATH does not exist: {repo}")
     _git(repo, "rev-parse", "--git-dir")
 
-    listed = _git(repo, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes")
+    listed = _git(repo, "for-each-ref", "--format=%(refname)", "refs/tags")
     refnames = [line for line in listed.splitlines() if line]
     try:
         base = select_base_ref(refnames)
     except LookupError as exc:
-        raise RuntimeError(f"no vX.Y.Z branch in {repo}") from exc
+        raise RuntimeError(f"no vX.Y.Z version tag in {repo}") from exc
 
     changed_paths, diff_summary = short_diff(repo, base.rev)
     return {

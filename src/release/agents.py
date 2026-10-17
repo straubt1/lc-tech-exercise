@@ -19,7 +19,7 @@ You do not publish a branch. A person approves, edits, or rejects the proposal a
 {RELEASE_POLICY}
 
 How to read the evidence:
-- changed_paths and diff_summary compare the highest published vX.Y.Z branch to the candidate checkout.
+- changed_paths and diff_summary compare the highest published vX.Y.Z tag to the candidate checkout.
 - The published contract is the root module: variables.tf, outputs.tf, and resources in the root .tf files. Stacks under consumers/ or examples/ are callers.
 - contract_findings, docs_findings, and regression_findings are the stage results.
 - A stage with status {NOT_RUN} was not run. Do not invent a pass. Do not invent a failure. Do not invent findings that stage would have produced.

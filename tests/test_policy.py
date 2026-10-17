@@ -17,52 +17,30 @@ def test_parse_version_rejects_tags_and_prefixes():
         assert parse_version(name) is None
 
 
-def test_selects_highest_remote_and_ignores_other_names():
+def test_selects_highest_tag_and_ignores_other_names():
     chosen = select_base_ref(
         [
-            "refs/remotes/origin/v1.0.0",
-            "refs/remotes/origin/v1.0.1",
-            "refs/remotes/origin/release/verify-v1.0.2",
-            "refs/remotes/origin/feature/update-tags",
-            "refs/remotes/origin/v1.2",
-            "refs/remotes/origin/v1.2.3-rc1",
-            "refs/remotes/origin/HEAD",
+            "refs/tags/v1.0.0",
+            "refs/tags/v1.0.1",
+            "refs/tags/v1.0.1^{}",
+            "refs/tags/v1.2",
+            "refs/tags/v1.2.3-rc1",
+            "refs/tags/not-a-version",
             "refs/heads/main",
-        ]
-    )
-    assert chosen.rev == "origin/v1.0.1"
-    assert chosen.short_name == "v1.0.1"
-    assert chosen.local is False
-
-
-def test_local_branch_wins_ties():
-    chosen = select_base_ref(
-        [
             "refs/remotes/origin/v1.0.1",
-            "refs/heads/v1.0.1",
-            "refs/heads/v1.0.0",
         ]
     )
     assert chosen.rev == "v1.0.1"
+    assert chosen.short_name == "v1.0.1"
     assert chosen.local is True
-
-
-def test_higher_remote_beats_lower_local():
-    chosen = select_base_ref(
-        [
-            "refs/heads/v1.0.0",
-            "refs/remotes/origin/v1.0.1",
-        ]
-    )
-    assert chosen.rev == "origin/v1.0.1"
 
 
 def test_numeric_order_not_lexicographic():
     chosen = select_base_ref(
         [
-            "refs/remotes/origin/v1.9.0",
-            "refs/remotes/origin/v1.10.0",
-            "refs/heads/v2.0.0",
+            "refs/tags/v1.9.0",
+            "refs/tags/v1.10.0",
+            "refs/tags/v2.0.0",
         ]
     )
     assert chosen.short_name == "v2.0.0"
@@ -88,7 +66,7 @@ def test_release_branch_choices():
 
 def test_missing_version_refs():
     try:
-        select_base_ref(["refs/heads/main", "refs/remotes/origin/feature/update-tags"])
+        select_base_ref(["refs/heads/main", "refs/tags/feature-update"])
     except LookupError:
         return
     raise AssertionError("expected LookupError")
