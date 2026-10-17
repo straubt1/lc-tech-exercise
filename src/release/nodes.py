@@ -8,6 +8,7 @@ from typing import Any
 from langgraph.types import interrupt
 
 from release.policy import (
+    CANDIDATE_BRANCH,
     DEFAULT_MODULE_PATH,
     NOT_RUN,
     chosen_release_branch,
@@ -56,31 +57,40 @@ def _include_patch(path: str) -> bool:
     return normalized.startswith("examples/") or "/examples/" in f"/{normalized}"
 
 
-def _dirty_note(repo: Path) -> str:
-    porcelain = _git(repo, "status", "--porcelain", "--untracked-files=all")
-    paths: list[str] = []
-    for line in porcelain.splitlines():
-        entry = line[3:] if len(line) > 3 else line
-        if " -> " in entry:
-            entry = entry.split(" -> ", 1)[1]
-        entry = entry.strip().strip('"')
-        if entry:
-            paths.append(entry)
+def resolve_candidate(repo: Path) -> tuple[str, str, str]:
+    """Return (display ref, git ref for commands, commit sha) for the module candidate branch."""
+    branch = os.environ.get("MODULE_CANDIDATE_BRANCH", "").strip() or CANDIDATE_BRANCH
+    for git_ref in (branch, f"origin/{branch}"):
+        try:
+            _git(repo, "rev-parse", "--verify", git_ref)
+        except RuntimeError:
+            continue
+        sha = _git(repo, "rev-parse", git_ref).strip()
+        return branch, git_ref, sha
+    raise RuntimeError(f"no {branch} branch in {repo}")
+
+
+def _dirty_note(repo: Path, candidate_git_ref: str) -> str:
+    tracked = [line for line in _git(repo, "diff", "--name-only", candidate_git_ref).splitlines() if line]
+    untracked = _git(repo, "ls-files", "--others", "--exclude-standard").splitlines()
+    paths = sorted(set(tracked) | set(untracked))
     if not paths:
         return ""
-    lines = ["Working tree has uncommitted changes. The candidate sha does not include:"]
+    lines = [
+        "Working tree differs from the candidate tip. These paths are not part of the candidate sha:"
+    ]
     lines.extend(f"- {path}" for path in paths)
     return "\n".join(lines)
 
 
-def short_diff(repo: Path, base_ref: str) -> tuple[list[str], str]:
+def short_diff(repo: Path, base_ref: str, candidate_ref: str) -> tuple[list[str], str]:
     """Changed paths plus patches for the contract and the docs. Other patches are omitted."""
-    name_status = _git(repo, "diff", "--name-status", base_ref, "HEAD")
+    name_status = _git(repo, "diff", "--name-status", base_ref, candidate_ref)
     paths = _paths_from_name_status(name_status)
     full = [path for path in paths if _include_patch(path)]
     parts = ["Changed files:", name_status.strip() or "(none)", ""]
     if full:
-        patch = _git(repo, "diff", "--unified=3", base_ref, "HEAD", "--", *full)
+        patch = _git(repo, "diff", "--unified=3", base_ref, candidate_ref, "--", *full)
         parts.append(
             "Patches for root and nested Terraform, README, changelog, and examples. "
             "Other changed paths are listed above without a patch."
@@ -88,7 +98,7 @@ def short_diff(repo: Path, base_ref: str) -> tuple[list[str], str]:
         parts.append(patch.strip())
     else:
         parts.append("No Terraform, README, changelog, or example patches.")
-    dirty = _dirty_note(repo)
+    dirty = _dirty_note(repo, candidate_ref)
     if dirty:
         parts.extend(["", dirty])
     summary = "\n".join(parts)
@@ -98,26 +108,27 @@ def short_diff(repo: Path, base_ref: str) -> tuple[list[str], str]:
 
 
 def load_node(state: ReleaseState) -> dict[str, Any]:
-    """Read the module checkout and diff HEAD against the highest vX.Y.Z ref."""
+    """Read the module checkout and diff the latest branch against the highest v-prefixed version tag."""
     raw = state.get("module_path") or os.environ.get("MODULE_PATH") or DEFAULT_MODULE_PATH
     repo = Path(raw).expanduser().resolve()
     if not repo.is_dir():
         raise RuntimeError(f"MODULE_PATH does not exist: {repo}")
     _git(repo, "rev-parse", "--git-dir")
 
-    listed = _git(repo, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes")
+    listed = _git(repo, "for-each-ref", "--format=%(refname)", "refs/tags")
     refnames = [line for line in listed.splitlines() if line]
     try:
         base = select_base_ref(refnames)
     except LookupError as exc:
-        raise RuntimeError(f"no vX.Y.Z branch in {repo}") from exc
+        raise RuntimeError(f"no vX.Y.Z version tag in {repo}") from exc
 
-    changed_paths, diff_summary = short_diff(repo, base.rev)
+    candidate_ref, candidate_git_ref, candidate_sha = resolve_candidate(repo)
+    changed_paths, diff_summary = short_diff(repo, base.rev, candidate_git_ref)
     return {
         "module_path": str(repo),
         "base_ref": base.rev,
-        "candidate_ref": _git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip(),
-        "candidate_sha": _git(repo, "rev-parse", "HEAD").strip(),
+        "candidate_ref": candidate_ref,
+        "candidate_sha": candidate_sha,
         "changed_paths": changed_paths,
         "diff_summary": diff_summary,
         "interface": {},

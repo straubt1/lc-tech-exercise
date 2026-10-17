@@ -12,7 +12,7 @@ from release.nodes import load_node
 from release.policy import NOT_RUN
 from release.state import ReleaseState
 
-REAL_MODULE = Path("/Users/tstraub/Projects/straubt1.github.com/terraform-aws-storage")
+REAL_MODULE = Path("/workspace/terraform-aws-object-storage")
 
 
 def git(repo: Path, *args: str) -> str:
@@ -34,32 +34,25 @@ def git(repo: Path, *args: str) -> str:
     return completed.stdout.strip()
 
 
-def make_repo(path: Path, *, local_versions: bool) -> Path:
+def make_repo(path: Path) -> Path:
     path.mkdir()
     git(path, "init", "-b", "main")
     (path / "variables.tf").write_text('variable "name_prefix" {\n  default = "networking"\n}\n')
     (path / "README.md").write_text("# module\n")
     git(path, "add", "variables.tf", "README.md")
     git(path, "commit", "-m", "v1.0.0")
-    sha_100 = git(path, "rev-parse", "HEAD")
-    git(path, "branch", "v1.0.0")
+    git(path, "tag", "v1.0.0")
     (path / "variables.tf").write_text('variable "name_prefix" {\n  default = "demo"\n}\n')
     git(path, "commit", "-am", "v1.0.1")
-    sha_101 = git(path, "rev-parse", "HEAD")
-    git(path, "branch", "v1.0.1")
+    git(path, "tag", "v1.0.1")
     (path / "variables.tf").write_text('variable "name_prefix" {\n  default = "storage"\n}\n')
     (path / "outputs.tf").write_text('output "bucket_domain_name" {\n  value = "example"\n}\n')
     git(path, "add", "variables.tf", "outputs.tf")
     git(path, "commit", "-m", "candidate")
-    git(path, "update-ref", "refs/remotes/origin/v1.0.0", sha_100)
-    git(path, "update-ref", "refs/remotes/origin/v1.0.1", sha_101)
-    git(path, "update-ref", "refs/remotes/origin/release/verify-v1.0.2", "HEAD")
-    git(path, "update-ref", "refs/remotes/origin/feature/update-tags", "HEAD")
-    git(path, "update-ref", "refs/remotes/origin/v1.2", "HEAD")
-    git(path, "update-ref", "refs/remotes/origin/v1.2.3-rc1", "HEAD")
-    if not local_versions:
-        git(path, "branch", "-D", "v1.0.0")
-        git(path, "branch", "-D", "v1.0.1")
+    git(path, "branch", "latest")
+    git(path, "tag", "v1.2")
+    git(path, "tag", "v1.2.3-rc1")
+    git(path, "tag", "not-a-semver-tag")
     return path
 
 
@@ -97,8 +90,8 @@ def test_version_agent_computes_branch_and_hides_token(monkeypatch):
     monkeypatch.setattr("release.agents.init_chat_model", lambda *args, **kwargs: FakeModel())
 
     state: ReleaseState = {
-        "base_ref": "origin/v1.0.1",
-        "candidate_ref": "main",
+        "base_ref": "v1.0.1",
+        "candidate_ref": "latest",
         "candidate_sha": "abc",
         "changed_paths": ["outputs.tf"],
         "diff_summary": "added an output",
@@ -148,24 +141,29 @@ def test_version_agent_docs_only_has_no_branch(monkeypatch):
     assert result["ready_for_release"] is False
 
 
-def test_load_prefers_remote_when_main_has_no_local_version(tmp_path: Path):
-    repo = make_repo(tmp_path / "module", local_versions=False)
+def test_load_uses_latest_not_checkout_branch(tmp_path: Path):
+    repo = make_repo(tmp_path / "module-latest")
+    git(repo, "checkout", "main")
+    (repo / "only-on-main.txt").write_text("ignored\n")
+    git(repo, "add", "only-on-main.txt")
+    git(repo, "commit", "-m", "main-only")
+    loaded = load_node({"module_path": str(repo)})
+    assert loaded["candidate_ref"] == "latest"
+    assert "only-on-main.txt" not in loaded["changed_paths"]
+
+
+def test_load_baselines_highest_v_tag(tmp_path: Path):
+    repo = make_repo(tmp_path / "module")
     (repo / "notes.txt").write_text("super-secret-token-value")
     loaded = load_node({"module_path": str(repo)})
-    assert loaded["base_ref"] == "origin/v1.0.1"
-    assert loaded["candidate_ref"] == "main"
+    assert loaded["base_ref"] == "v1.0.1"
+    assert loaded["candidate_ref"] == "latest"
     assert loaded["interface"] == {}
     assert "variables.tf" in loaded["changed_paths"]
     assert "outputs.tf" in loaded["changed_paths"]
     assert 'default = "storage"' in loaded["diff_summary"]
     assert "notes.txt" in loaded["diff_summary"]
     assert "super-secret-token-value" not in loaded["diff_summary"]
-
-
-def test_load_prefers_local_version_branch(tmp_path: Path):
-    repo = make_repo(tmp_path / "module", local_versions=True)
-    loaded = load_node({"module_path": str(repo)})
-    assert loaded["base_ref"] == "v1.0.1"
 
 
 def _fake_version(state: ReleaseState) -> dict:
@@ -195,7 +193,7 @@ def _run_decision(repo: Path, decision: dict[str, str], monkeypatch) -> ReleaseS
     assert captured_packet["proposed_version"] == "v1.0.2"
     for key in ("contract_findings", "docs_findings", "regression_findings"):
         assert captured_packet[key]["status"] == NOT_RUN
-    assert captured["state"]["base_ref"] == "origin/v1.0.1"
+    assert captured["state"]["base_ref"] == "v1.0.1"
     blob = json.dumps(values)
     assert "ghp_sampletoken_should_not_leak" not in blob
     branches = git(repo, "branch", "--list", "v1.0.2")
@@ -204,7 +202,7 @@ def _run_decision(repo: Path, decision: dict[str, str], monkeypatch) -> ReleaseS
 
 
 def test_approve_is_a_dry_run_on_the_same_thread(tmp_path: Path, monkeypatch):
-    repo = make_repo(tmp_path / "module", local_versions=False)
+    repo = make_repo(tmp_path / "module")
     values = _run_decision(repo, {"decision": "approved", "version": "", "notes": ""}, monkeypatch)
     assert values["human_decision"] == "approved"
     assert values["release_result"] == {"status": "dry_run", "branch": "v1.0.2", "url": ""}
@@ -212,13 +210,13 @@ def test_approve_is_a_dry_run_on_the_same_thread(tmp_path: Path, monkeypatch):
 
 
 def test_reject_creates_no_branch(tmp_path: Path, monkeypatch):
-    repo = make_repo(tmp_path / "module", local_versions=False)
+    repo = make_repo(tmp_path / "module")
     values = _run_decision(repo, {"decision": "rejected", "version": "", "notes": ""}, monkeypatch)
     assert values["release_result"] == {"status": "rejected", "branch": "", "url": ""}
 
 
 def test_edit_uses_the_edited_branch_and_notes(tmp_path: Path, monkeypatch):
-    repo = make_repo(tmp_path / "module", local_versions=False)
+    repo = make_repo(tmp_path / "module")
     values = _run_decision(
         repo,
         {"decision": "edited", "version": "v1.4.0", "notes": "Ship the edited notes."},
@@ -231,7 +229,7 @@ def test_edit_uses_the_edited_branch_and_notes(tmp_path: Path, monkeypatch):
 
 
 def test_edit_rejects_a_non_release_name(tmp_path: Path, monkeypatch):
-    repo = make_repo(tmp_path / "module", local_versions=False)
+    repo = make_repo(tmp_path / "module")
     values = _run_decision(
         repo,
         {"decision": "edited", "version": "v1.2", "notes": "nope"},
@@ -256,7 +254,7 @@ def test_graph_edges_stay_linear():
 
 
 def test_resume_uses_checkpoint_interrupt(tmp_path: Path, monkeypatch):
-    repo = make_repo(tmp_path / "module", local_versions=False)
+    repo = make_repo(tmp_path / "module")
     monkeypatch.setattr("release.graph.version_agent", _fake_version)
     graph = build_graph()
     config = {"configurable": {"thread_id": "same-thread"}}
@@ -272,13 +270,11 @@ def test_resume_uses_checkpoint_interrupt(tmp_path: Path, monkeypatch):
     assert graph.get_state(config).values["release_result"]["status"] == "dry_run"
 
 
-@pytest.mark.skipif(not REAL_MODULE.is_dir(), reason="storage module checkout is not on this machine")
-def test_real_module_on_main_baselines_origin_v1_0_1():
+@pytest.mark.skipif(not REAL_MODULE.is_dir(), reason="object-storage module checkout is not on this machine")
+def test_real_module_on_latest_baselines_v1_0_1():
     loaded = load_node({"module_path": str(REAL_MODULE)})
-    assert loaded["candidate_ref"] == "main"
-    assert loaded["base_ref"] == "origin/v1.0.1"
+    assert loaded["candidate_ref"] == "latest"
+    assert loaded["base_ref"] == "v1.0.1"
     assert loaded["candidate_sha"]
-    for path in ("variables.tf", "outputs.tf", "main.tf", "README.md"):
-        assert path in loaded["changed_paths"]
-    assert "bucket_domain_name" in loaded["diff_summary"]
+    assert "main.tf" in loaded["changed_paths"]
     assert "lockfileVersion" not in loaded["diff_summary"]

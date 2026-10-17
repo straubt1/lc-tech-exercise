@@ -11,8 +11,8 @@ This is the Part 2 agent system from [Take-Home Assignment.md](../Take-Home%20As
 ## Locked choices
 
 - Python, LangGraph `StateGraph`, `init_chat_model` from `.env`, `interrupt` plus `Command` for the human gate, `InMemorySaver` with a `thread_id`.
-- The module checkout is `/Users/tstraub/Projects/straubt1.github.com/terraform-aws-storage`. `MODULE_PATH` defaults to that path. This repo does not vendor the module.
-- Previous versions are branches named `vMAJOR.MINOR.PATCH`, not git tags. Load searches `refs/heads` and `refs/remotes` for that exact short name, prefers a local branch when both exist, and diffs the current checkout against the highest semver. On this checkout the version refs are `origin/v1.0.0` and `origin/v1.0.1`, so a run from `main` baselines `v1.0.1`. `main` is the candidate, not a version branch. `release/verify-v1.0.2`, `feature/*`, and names such as `v1.2` or `v1.2.3-rc1` are ignored. A published release is a new `vX.Y.Z` branch, so the next run can see it.
+- The module is [straubt1/terraform-aws-object-storage](https://github.com/straubt1/terraform-aws-object-storage). The checkout defaults to `/workspace/terraform-aws-object-storage` via `MODULE_PATH`. This repo does not vendor the module.
+- Previous versions are git tags whose names start with `v` and match `vMAJOR.MINOR.PATCH`. Load searches `refs/tags`, ignores peeled tag refs (`^{}`), and diffs the `latest` branch against the highest semver tag. On this module the version tags are `v1.0.0` and `v1.0.1`, so a typical run baselines `v1.0.1` against `latest`. The `main` branch is ignored for release review. Tags such as `v1.2` or `v1.2.3-rc1` are ignored. A published release is still a new `vX.Y.Z` branch at the candidate sha on `latest`; the next tag for baseline semver is created separately when the team tags that release.
 - Ministack is already running. A later regression step will use environment variables only (`AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID=test`, `AWS_SECRET_ACCESS_KEY=test`, `AWS_DEFAULT_REGION`, `AWS_EC2_METADATA_DISABLED=true`). No Terraform edits and no real credentials.
 - Docs-only changes produce bump `none` and do not publish a version branch.
 - Removing, renaming, or retyping a variable or output, adding a required variable, or changing a default is major. Adding an optional variable or output is minor. A behavior fix that keeps the contract is patch.
@@ -42,7 +42,7 @@ Logical order: read the module, judge the interface, judge the docs, record that
 
 One `TypedDict` from the first increment, so later agents fill fields instead of reshaping the graph.
 
-- Identity: `module_path`, `base_ref` (the highest `vX.Y.Z` branch), `candidate_ref`, `candidate_sha`, `diff_summary`, `changed_paths`
+- Identity: `module_path`, `base_ref` (the highest `vX.Y.Z` tag), `candidate_ref`, `candidate_sha`, `diff_summary`, `changed_paths`
 - Evidence: `interface`, `contract_findings`, `docs_findings`, `regression_findings`
 - Decision: `bump` (`major`, `minor`, `patch`, `none`), `proposed_version` (the branch name, such as `v1.3.0`), `reasons`, `blockers`, `ready_for_release`, `release_notes`
 - Human: `human_decision` (`approved`, `edited`, `rejected`), `human_edited_version`, `human_edited_notes`
@@ -77,9 +77,9 @@ One function, `publish_release(branch, sha, notes) -> {status, url}`, called onl
 
 Files under `src/release/`: `state.py`, `policy.py`, `graph.py`, `nodes.py`, `agents.py`, `cli.py`, plus `.env.example`.
 
-Load reads the module at `MODULE_PATH`, selects the highest `vX.Y.Z` ref (`origin/v1.0.1` when `main` is checked out), and records the candidate sha, changed paths, and a short diff against that ref. Pass-throughs write `{status: not_run}`. The version agent is a structured call with no tools. The CLI runs until the interrupt, asks for approve, edit, or reject, and resumes.
+Load reads the module at `MODULE_PATH`, resolves the `latest` branch (not `main`), selects the highest `vX.Y.Z` tag (`v1.0.1` on terraform-aws-object-storage), and records the candidate sha, changed paths, and a short diff from that tag to `latest`. Pass-throughs write `{status: not_run}`. The version agent is a structured call with no tools. The CLI runs until the interrupt, asks for approve, edit, or reject, and resumes.
 
-Done when a run on `main` prints a bump and a proposed `vX.Y.Z` branch, the human choice is resumed on the same thread, and the default result is a dry-run release record. No token required.
+Done when a run against `latest` prints a bump and a proposed `vX.Y.Z` branch, the human choice is resumed on the same thread, and the default result is a dry-run release record. No token required.
 
 ### 2. Live release branch
 
@@ -112,7 +112,7 @@ Recommended set, enough for the assignment:
 
 Deeper options, designed here and built only after the recommended set is green:
 
-- Replay ranges between `vX.Y.Z` branches from the real module when those branches follow the policy.
+- Replay ranges between `vX.Y.Z` tags from the real module when those tags follow the policy.
 - Separate datasets for the contract agent and the docs agent. Description quality can add an LLM-as-judge rubric beside the deterministic sensitive and default checks. Validation snippets are graded by parse and by variable name.
 - Trajectory evaluators for stage order and for every not-run status.
 - Edit distance between the proposal and the human-edited notes, recorded only from real CLI sessions.
@@ -123,8 +123,8 @@ Done when `python -m evals.run_experiment` prints the recommended metrics in Lan
 
 ### 6. Demo and friction log
 
-Add `demo/script.md` for a five to ten minute recording: one happy release branch, one blocked release, the interrupt, and the LangSmith experiment. The demo uses `main` against `origin/v1.0.1` in the storage module checkout. Append framework friction to `docs/friction-log.md` as it happens. Map the result to business KPIs in the presentation later: escaped breaking changes, review time per release, and releases blocked for contract or doc gaps.
+Add `demo/script.md` for a five to ten minute recording: one happy release branch, one blocked release, the interrupt, and the LangSmith experiment. The demo uses branch `latest` against tag `v1.0.1` in the terraform-aws-object-storage checkout. Append framework friction to `docs/friction-log.md` as it happens. Map the result to business KPIs in the presentation later: escaped breaking changes, review time per release, and releases blocked for contract or doc gaps.
 
 ## Reserved: regression
 
-Not an increment. When it is built, a plain node will check out the highest `vX.Y.Z` branch, apply it, and plan the candidate against that state, using the running ministack and the environment variables above. The version agent will then see replacements, destroys, and apply errors. Until then the node remains the increment 1 pass-through, and the human gate shows that tests did not run.
+Not an increment. When it is built, a plain node will check out the highest `vX.Y.Z` tag, apply it, and plan the candidate against that state, using the running ministack and the environment variables above. The version agent will then see replacements, destroys, and apply errors. Until then the node remains the increment 1 pass-through, and the human gate shows that tests did not run.
