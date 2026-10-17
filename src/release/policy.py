@@ -5,6 +5,9 @@ from dataclasses import dataclass
 
 DEFAULT_MODULE_PATH = "/workspace/terraform-aws-object-storage"
 
+# Module code under review lives on this branch; main is not the release candidate.
+CANDIDATE_BRANCH = "latest"
+
 NOT_RUN = "not_run"
 
 BUMPS = ("major", "minor", "patch", "none")

@@ -49,6 +49,7 @@ def make_repo(path: Path) -> Path:
     (path / "outputs.tf").write_text('output "bucket_domain_name" {\n  value = "example"\n}\n')
     git(path, "add", "variables.tf", "outputs.tf")
     git(path, "commit", "-m", "candidate")
+    git(path, "branch", "latest")
     git(path, "tag", "v1.2")
     git(path, "tag", "v1.2.3-rc1")
     git(path, "tag", "not-a-semver-tag")
@@ -90,7 +91,7 @@ def test_version_agent_computes_branch_and_hides_token(monkeypatch):
 
     state: ReleaseState = {
         "base_ref": "v1.0.1",
-        "candidate_ref": "main",
+        "candidate_ref": "latest",
         "candidate_sha": "abc",
         "changed_paths": ["outputs.tf"],
         "diff_summary": "added an output",
@@ -140,12 +141,23 @@ def test_version_agent_docs_only_has_no_branch(monkeypatch):
     assert result["ready_for_release"] is False
 
 
+def test_load_uses_latest_not_checkout_branch(tmp_path: Path):
+    repo = make_repo(tmp_path / "module-latest")
+    git(repo, "checkout", "main")
+    (repo / "only-on-main.txt").write_text("ignored\n")
+    git(repo, "add", "only-on-main.txt")
+    git(repo, "commit", "-m", "main-only")
+    loaded = load_node({"module_path": str(repo)})
+    assert loaded["candidate_ref"] == "latest"
+    assert "only-on-main.txt" not in loaded["changed_paths"]
+
+
 def test_load_baselines_highest_v_tag(tmp_path: Path):
     repo = make_repo(tmp_path / "module")
     (repo / "notes.txt").write_text("super-secret-token-value")
     loaded = load_node({"module_path": str(repo)})
     assert loaded["base_ref"] == "v1.0.1"
-    assert loaded["candidate_ref"] == "main"
+    assert loaded["candidate_ref"] == "latest"
     assert loaded["interface"] == {}
     assert "variables.tf" in loaded["changed_paths"]
     assert "outputs.tf" in loaded["changed_paths"]
@@ -259,12 +271,10 @@ def test_resume_uses_checkpoint_interrupt(tmp_path: Path, monkeypatch):
 
 
 @pytest.mark.skipif(not REAL_MODULE.is_dir(), reason="object-storage module checkout is not on this machine")
-def test_real_module_on_main_baselines_v1_0_1():
+def test_real_module_on_latest_baselines_v1_0_1():
     loaded = load_node({"module_path": str(REAL_MODULE)})
-    assert loaded["candidate_ref"] == "main"
+    assert loaded["candidate_ref"] == "latest"
     assert loaded["base_ref"] == "v1.0.1"
     assert loaded["candidate_sha"]
-    assert "README.md" in loaded["changed_paths"]
-    assert "versions/" in "\n".join(loaded["changed_paths"])
-    assert "Taskfile.yml" in loaded["changed_paths"]
+    assert "main.tf" in loaded["changed_paths"]
     assert "lockfileVersion" not in loaded["diff_summary"]

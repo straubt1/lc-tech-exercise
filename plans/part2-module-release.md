@@ -12,7 +12,7 @@ This is the Part 2 agent system from [Take-Home Assignment.md](../Take-Home%20As
 
 - Python, LangGraph `StateGraph`, `init_chat_model` from `.env`, `interrupt` plus `Command` for the human gate, `InMemorySaver` with a `thread_id`.
 - The module is [straubt1/terraform-aws-object-storage](https://github.com/straubt1/terraform-aws-object-storage). The checkout defaults to `/workspace/terraform-aws-object-storage` via `MODULE_PATH`. This repo does not vendor the module.
-- Previous versions are git tags whose names start with `v` and match `vMAJOR.MINOR.PATCH`. Load searches `refs/tags`, ignores peeled tag refs (`^{}`), and diffs the current checkout against the highest semver tag. On this module the version tags are `v1.0.0` and `v1.0.1`, so a run from `main` baselines `v1.0.1`. `main` is the candidate, not a version tag. Tags such as `v1.2` or `v1.2.3-rc1` are ignored. A published release is still a new `vX.Y.Z` branch at the candidate sha; the next tag for baseline semver is created separately when the team tags that release.
+- Previous versions are git tags whose names start with `v` and match `vMAJOR.MINOR.PATCH`. Load searches `refs/tags`, ignores peeled tag refs (`^{}`), and diffs the `latest` branch against the highest semver tag. On this module the version tags are `v1.0.0` and `v1.0.1`, so a typical run baselines `v1.0.1` against `latest`. The `main` branch is ignored for release review. Tags such as `v1.2` or `v1.2.3-rc1` are ignored. A published release is still a new `vX.Y.Z` branch at the candidate sha on `latest`; the next tag for baseline semver is created separately when the team tags that release.
 - Ministack is already running. A later regression step will use environment variables only (`AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID=test`, `AWS_SECRET_ACCESS_KEY=test`, `AWS_DEFAULT_REGION`, `AWS_EC2_METADATA_DISABLED=true`). No Terraform edits and no real credentials.
 - Docs-only changes produce bump `none` and do not publish a version branch.
 - Removing, renaming, or retyping a variable or output, adding a required variable, or changing a default is major. Adding an optional variable or output is minor. A behavior fix that keeps the contract is patch.
@@ -77,9 +77,9 @@ One function, `publish_release(branch, sha, notes) -> {status, url}`, called onl
 
 Files under `src/release/`: `state.py`, `policy.py`, `graph.py`, `nodes.py`, `agents.py`, `cli.py`, plus `.env.example`.
 
-Load reads the module at `MODULE_PATH`, selects the highest `vX.Y.Z` tag (`v1.0.1` when `main` is checked out on terraform-aws-object-storage), and records the candidate sha, changed paths, and a short diff against that tag. Pass-throughs write `{status: not_run}`. The version agent is a structured call with no tools. The CLI runs until the interrupt, asks for approve, edit, or reject, and resumes.
+Load reads the module at `MODULE_PATH`, resolves the `latest` branch (not `main`), selects the highest `vX.Y.Z` tag (`v1.0.1` on terraform-aws-object-storage), and records the candidate sha, changed paths, and a short diff from that tag to `latest`. Pass-throughs write `{status: not_run}`. The version agent is a structured call with no tools. The CLI runs until the interrupt, asks for approve, edit, or reject, and resumes.
 
-Done when a run on `main` prints a bump and a proposed `vX.Y.Z` branch, the human choice is resumed on the same thread, and the default result is a dry-run release record. No token required.
+Done when a run against `latest` prints a bump and a proposed `vX.Y.Z` branch, the human choice is resumed on the same thread, and the default result is a dry-run release record. No token required.
 
 ### 2. Live release branch
 
@@ -123,7 +123,7 @@ Done when `python -m evals.run_experiment` prints the recommended metrics in Lan
 
 ### 6. Demo and friction log
 
-Add `demo/script.md` for a five to ten minute recording: one happy release branch, one blocked release, the interrupt, and the LangSmith experiment. The demo uses `main` against tag `v1.0.1` in the terraform-aws-object-storage checkout. Append framework friction to `docs/friction-log.md` as it happens. Map the result to business KPIs in the presentation later: escaped breaking changes, review time per release, and releases blocked for contract or doc gaps.
+Add `demo/script.md` for a five to ten minute recording: one happy release branch, one blocked release, the interrupt, and the LangSmith experiment. The demo uses branch `latest` against tag `v1.0.1` in the terraform-aws-object-storage checkout. Append framework friction to `docs/friction-log.md` as it happens. Map the result to business KPIs in the presentation later: escaped breaking changes, review time per release, and releases blocked for contract or doc gaps.
 
 ## Reserved: regression
 

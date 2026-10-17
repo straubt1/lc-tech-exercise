@@ -28,7 +28,9 @@ MODULE_DIR="/workspace/terraform-aws-object-storage"
 if [[ ! -d "${MODULE_DIR}/.git" ]]; then
   echo "==> install-check: cloning terraform-aws-object-storage"
   git clone https://github.com/straubt1/terraform-aws-object-storage.git "${MODULE_DIR}"
-  git -C "${MODULE_DIR}" fetch --tags --depth 1 origin
 fi
+echo "==> install-check: fetching module tags and latest branch"
+git -C "${MODULE_DIR}" fetch origin "refs/heads/latest:refs/remotes/origin/latest"
+git -C "${MODULE_DIR}" fetch --tags origin
 
 echo "==> install-check: OK"

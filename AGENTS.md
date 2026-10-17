@@ -14,7 +14,7 @@ export AWS_DEFAULT_REGION=us-east-1
 export AWS_EC2_METADATA_DISABLED=true
 ```
 
-The module under review is [straubt1/terraform-aws-object-storage](https://github.com/straubt1/terraform-aws-object-storage). The install step clones it to `/workspace/terraform-aws-object-storage` when missing. `MODULE_PATH` defaults to that directory. Previous published versions are git tags named `vX.Y.Z` (tags that start with `v` and match semver).
+The module under review is [straubt1/terraform-aws-object-storage](https://github.com/straubt1/terraform-aws-object-storage). The install step clones it to `/workspace/terraform-aws-object-storage` when missing and fetches the `latest` branch. `MODULE_PATH` defaults to that directory. **Candidate code is always branch `latest`; `main` is not used.** Previous published versions are git tags named `vX.Y.Z` (tags that start with `v` and match semver).
 
 API keys and `GH_TOKEN` come from the Cloud Agents secrets tab. Do not write them into the repo, the Dockerfile, or agent state. Leave `RELEASE_ENABLED` unset unless a person is explicitly publishing a version branch.
 
