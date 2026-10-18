@@ -6,6 +6,7 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from release.config import Settings, load_settings
@@ -91,7 +92,7 @@ def run(
     read_decision: Callable[[dict[str, Any]], dict[str, str]],
 ) -> ReleaseState:
     configure_langsmith(settings)
-    graph = build_graph()
+    graph = build_graph(InMemorySaver())
     config = {"configurable": {"thread_id": thread_id}}
     first = graph.invoke(
         {"repo": settings.github_repo, "candidate_ref": settings.candidate_ref},

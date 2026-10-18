@@ -1,7 +1,6 @@
-"""Release graph. Agents are created inside the nodes and are not invoked yet."""
+"""Release graph. The diff agent runs; later agents are still stubs."""
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from release.agents.diff import diff_node
@@ -27,6 +26,7 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
     builder.add_edge("regression", "release")
     builder.add_edge("release", END)
 
-    if checkpointer is None:
-        checkpointer = InMemorySaver()
-    return builder.compile(checkpointer=checkpointer)
+    return builder.compile(checkpointer=checkpointer, name="terraform_module_releaser")
+
+
+graph = build_graph()

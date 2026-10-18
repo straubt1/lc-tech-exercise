@@ -1,0 +1,9 @@
+{
+  "$schema": "https://langgra.ph/schema.json",
+  "dependencies": [".", "./src"],
+  "graphs": {
+    "terraform_module_releaser": "./src/release/graph.py:graph"
+  },
+  "env": ".env",
+  "python_version": "3.12"
+}

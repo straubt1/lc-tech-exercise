@@ -10,8 +10,8 @@ from release.agents.version import build_version_agent
 from release.config import LANGSMITH_CLOUD_ENDPOINT, Settings, load_settings, split_repo
 from release.evals import experiment_spec, run_experiment
 from release.prompts import load_prompt
-from release.tf_module_releaser import run
-from release.tools.github_read import compare_refs, list_version_tags, read_repo_file
+from release.terraform_module_releaser import run
+from release.tools.github_read import read_repo_file
 from release.tools.github_release import create_draft_release
 
 
@@ -34,17 +34,15 @@ def test_agents_use_create_agent():
     assert release.get_name() == "release"
 
 
-def test_public_read_tools_are_stubs_and_ignore_token(monkeypatch):
+def test_unpublished_tools_are_stubs_and_ignore_token(monkeypatch):
     monkeypatch.setenv("GH_TOKEN", "super-secret-token")
     results = [
-        list_version_tags.invoke({"owner": "octo", "repo": "mod"}),
-        compare_refs.invoke({"owner": "octo", "repo": "mod", "base": "v1.0.0", "head": "latest"}),
         read_repo_file.invoke({"owner": "octo", "repo": "mod", "path": "README.md", "ref": "latest"}),
         create_draft_release.invoke(
             {"owner": "octo", "repo": "mod", "tag": "v1.2.0", "notes": "notes"}
         ),
     ]
-    assert results == ["not implemented"] * 4
+    assert results == ["not implemented", "not implemented"]
     assert all("super-secret-token" not in item for item in results)
 
 
@@ -63,19 +61,31 @@ def _settings(**overrides) -> Settings:
     return Settings(**values)
 
 
+def _offline_diff(_state):
+    return {
+        "base_ref": "v1.0.1",
+        "candidate_sha": "abc123",
+        "changed_paths": ["main.tf"],
+        "diff_summary": "offline graph test",
+    }
+
+
 def test_graph_approve_stops_at_stub_release(monkeypatch):
     monkeypatch.setenv("GH_TOKEN", "super-secret-token")
+    monkeypatch.setattr("release.graph.diff_node", _offline_diff)
     values = run(_settings(), "thread-approve", lambda packet: {"decision": "approved"})
     encoded = json.dumps(values)
     assert "super-secret-token" not in encoded
-    assert values["diff_summary"].startswith("stub:")
+    assert values["base_ref"] == "v1.0.1"
+    assert values["diff_summary"] == "offline graph test"
     assert values["docs_findings"]["status"] == "stub"
     assert values["regression_findings"]["status"] == "not_run"
     assert values["human_decision"] == "approved"
     assert values["release_result"] == {"status": "stub", "tag": "", "url": ""}
 
 
-def test_graph_reject_creates_nothing():
+def test_graph_reject_creates_nothing(monkeypatch):
+    monkeypatch.setattr("release.graph.diff_node", _offline_diff)
     values = run(_settings(), "thread-reject", lambda packet: {"decision": "rejected"})
     assert values["release_result"]["status"] == "rejected"
     assert values["release_result"]["url"] == ""
@@ -98,7 +108,8 @@ def test_langsmith_experiment_targets_cloud():
         run_experiment()
 
 
-def test_tracing_requires_a_cloud_project():
+def test_tracing_requires_a_cloud_project(monkeypatch):
+    monkeypatch.setattr("release.graph.diff_node", _offline_diff)
     settings = _settings(langsmith_tracing=True)
     with pytest.raises(RuntimeError, match="LANGSMITH_PROJECT"):
         run(settings, "thread-trace", lambda packet: {"decision": "rejected"})

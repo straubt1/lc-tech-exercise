@@ -20,13 +20,13 @@ API keys and `GH_TOKEN` come from the Cloud Agents secrets tab. Do not write the
 
 ### Run the release agent (`uv`)
 
-The environment image includes `uv`. Install (on environment builds) runs `uv sync --frozen` in `/workspace`, clones the Terraform module, and verifies `uv run python -m release.tf_module_releaser --help`.
+The environment image includes `uv`. Install (on environment builds) runs `uv sync --frozen` in `/workspace`, clones the Terraform module, and verifies `uv run python -m release.terraform_module_releaser --help`.
 
 From the repo root:
 
 ```bash
 cd /workspace
-uv run python -m release.tf_module_releaser
+uv run python -m release.terraform_module_releaser
 ```
 
 Optional: `--thread-id` to reuse a checkpoint.

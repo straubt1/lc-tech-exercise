@@ -10,7 +10,7 @@ This is the Part 2 agent system from [Take-Home Assignment.md](../Take-Home%20As
 
 ## Locked choices
 
-- Python. The entrypoint is `python -m release.tf_module_releaser`. It loads `.env` and starts the graph.
+- Python. The entrypoint is `python -m release.terraform_module_releaser`. It loads `.env` and starts the graph.
 - Each specialist is built with `langchain.agents.create_agent`. Prompts are files under `src/release/prompts/`. They are not inline strings.
 - The outer workflow is a LangGraph `StateGraph` with `interrupt` and `Command` on one `thread_id`. The checkpointer is `InMemorySaver`.
 - The module is the public repo [straubt1/terraform-aws-object-storage](https://github.com/straubt1/terraform-aws-object-storage), set with `GITHUB_REPO=owner/name`. The candidate ref is `GITHUB_CANDIDATE_REF` and defaults to `latest`. `main` is not the candidate. There is no local checkout on this path.
@@ -65,11 +65,11 @@ Tool bodies return `not implemented` and do not call GitHub.
 
 ### 1. Runnable stub
 
-Files under `src/release/`: `tf_module_releaser.py`, `graph.py`, `state.py`, `config.py`, `agents/`, `tools/`, `prompts/`, `observability.py`, `evals.py`.
+Files under `src/release/`: `terraform_module_releaser.py`, `graph.py`, `state.py`, `config.py`, `agents/`, `tools/`, `prompts/`, `observability.py`, `evals.py`.
 
 The CLI runs until the interrupt, asks for approve or reject, and resumes. Approve records `status: stub`. Reject records `status: rejected`. Neither creates a draft release. `evals.run_experiment` names the LangSmith cloud dataset and raises until a later increment.
 
-Done when `uv run pytest` passes and `uv run python -m release.tf_module_releaser` reaches the human gate without a token.
+Done when `uv run pytest` passes and `uv run python -m release.terraform_module_releaser` reaches the human gate without a token.
 
 ### 2. Diff agent
 
