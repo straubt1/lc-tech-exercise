@@ -7,6 +7,8 @@ import re
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 from urllib.parse import quote
 
@@ -17,6 +19,7 @@ _API = "https://api.github.com"
 _MAX_PATCH = 4000
 _MAX_FILES = 40
 _MAX_BLOB = 200_000
+_github_transport: ContextVar[Callable[[str], Any] | None] = ContextVar("github_transport", default=None)
 
 
 def version_key(name: str) -> tuple[int, int, int] | None:
@@ -41,7 +44,20 @@ def published_tags(raw_tags: list[dict[str, Any]]) -> list[dict[str, str]]:
     return chosen
 
 
+@contextmanager
+def use_github_transport(transport: Callable[[str], Any]):
+    """Serve GitHub reads for one example. Unset, reads stay on the public API."""
+    token = _github_transport.set(transport)
+    try:
+        yield
+    finally:
+        _github_transport.reset(token)
+
+
 def github_get(path: str) -> Any:
+    transport = _github_transport.get()
+    if transport is not None:
+        return transport(path)
     request = urllib.request.Request(
         _API + path,
         headers={
@@ -116,6 +132,8 @@ def _file_text(owner: str, repo: str, path: str, ref: str) -> str | None:
     """File body at a ref from the contents API. Comparison stays local."""
     suffix = f"/contents/{quote(path, safe='/')}?ref={quote(ref, safe='')}"
     payload = github_get(_repo_path(owner, repo, suffix))
+    if not isinstance(payload, dict):
+        return None
     if payload.get("encoding") != "base64" or int(payload.get("size") or 0) > _MAX_BLOB:
         return None
     raw = base64.b64decode(payload.get("content") or "")
@@ -207,7 +225,41 @@ def make_diff_tools(owner: str, repo: str, candidate_ref: str):
     return [list_version_tags, compare_refs]
 
 
-@tool
-def read_repo_file(owner: str, repo: str, path: str, ref: str) -> str:
-    """Read one file from a public GitHub repository at a ref."""
-    return "not implemented"
+_MAX_DOC = 20_000
+
+
+def list_files(owner: str, repo: str, ref: str) -> list[str]:
+    sha = commit_sha(owner, repo, ref)
+    return sorted(_tree_blobs(owner, repo, sha))
+
+
+def read_file(owner: str, repo: str, path: str, ref: str) -> str:
+    if path.startswith("/") or ".." in path.split("/"):
+        return json.dumps({"error": "path must stay inside the repository", "path": path})
+    try:
+        text = _file_text(owner, repo, path, ref)
+    except RuntimeError as exc:
+        if "GitHub 404" not in str(exc):
+            raise
+        return json.dumps({"error": "not found", "path": path})
+    if text is None:
+        return json.dumps({"error": "unreadable", "path": path})
+    if len(text) > _MAX_DOC:
+        return text[:_MAX_DOC] + "\n... truncated"
+    return text
+
+
+def make_docs_tools(owner: str, repo: str, candidate_ref: str):
+    """Tools bound to the candidate ref. The model cannot choose another repo."""
+
+    @tool
+    def list_candidate_files() -> str:
+        """List file paths at the configured candidate ref."""
+        return json.dumps({"files": list_files(owner, repo, candidate_ref)})
+
+    @tool
+    def read_candidate_file(path: str) -> str:
+        """Read one file at the configured candidate ref."""
+        return read_file(owner, repo, path, candidate_ref)
+
+    return [list_candidate_files, read_candidate_file]

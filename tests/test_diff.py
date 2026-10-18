@@ -2,6 +2,8 @@ import base64
 import json
 import urllib.request
 
+import pytest
+
 from release.agents.diff import DiffReport, diff_node
 from release.tools.github_read import (
     diff_refs,
@@ -105,6 +107,25 @@ def test_github_get_does_not_send_a_token(monkeypatch):
     assert "super-secret-token" not in header_text
 
 
+def test_diff_node_rejects_a_version_bump_as_the_category(monkeypatch):
+    class Agent:
+        def invoke(self, _payload):
+            return {
+                "structured_response": DiffReport(
+                    base_ref="v1.0.1",
+                    candidate_sha="a" * 40,
+                    changed_paths=["main.tf"],
+                    diff_summary="Changed the bucket name.",
+                    change_category="patch",
+                )
+            }
+
+    monkeypatch.setattr("release.agents.diff.resolve_model", lambda: object())
+    monkeypatch.setattr("release.agents.diff.build_diff_agent", lambda *args, **kwargs: Agent())
+    with pytest.raises(RuntimeError, match="version bump"):
+        diff_node({"repo": "octo/mod", "candidate_ref": "latest"})
+
+
 def test_diff_node_records_the_local_report(monkeypatch):
     class Agent:
         def invoke(self, _payload):
@@ -114,6 +135,7 @@ def test_diff_node_records_the_local_report(monkeypatch):
                     candidate_sha="a" * 40,
                     changed_paths=["main.tf"],
                     diff_summary="Changed the bucket name.",
+                    change_category="naming",
                 )
             }
 
@@ -125,4 +147,5 @@ def test_diff_node_records_the_local_report(monkeypatch):
         "candidate_sha": "a" * 40,
         "changed_paths": ["main.tf"],
         "diff_summary": "Changed the bucket name.",
+        "change_category": "naming",
     }

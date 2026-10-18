@@ -18,8 +18,11 @@ class DiffReport(BaseModel):
 
     base_ref: str = Field(description="Highest published vMAJOR.MINOR.PATCH tag.")
     candidate_sha: str = Field(description="Full commit sha of the candidate ref from the compare tool.")
-    changed_paths: list[str] = Field(description="File paths returned by the compare tool.")
-    diff_summary: str = Field(description="Contract and behavior changes visible in the tool patches.")
+    changed_paths: list[str] = Field(description="Files that differ from the last published tag.")
+    diff_summary: str = Field(description="Summary of edits since the last published tag.")
+    change_category: str = Field(
+        description="One short label for the type of change since the last published tag. Not a version bump."
+    )
 
 
 def build_diff_agent(
@@ -68,9 +71,15 @@ def diff_node(state: ReleaseState) -> dict[str, Any]:
         raise RuntimeError(f"diff agent returned unknown base ref {decision.base_ref}")
     if not decision.candidate_sha:
         raise RuntimeError("diff agent did not return a candidate sha")
+    category = decision.change_category.strip()
+    if not category:
+        raise RuntimeError("diff agent did not return a change category")
+    if category.lower() in {"major", "minor", "patch"}:
+        raise RuntimeError("diff agent returned a version bump instead of a change category")
     return {
         "base_ref": decision.base_ref,
         "candidate_sha": decision.candidate_sha,
         "changed_paths": [path for path in decision.changed_paths if path],
         "diff_summary": decision.diff_summary.strip(),
+        "change_category": category,
     }

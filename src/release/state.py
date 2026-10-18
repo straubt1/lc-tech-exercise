@@ -3,7 +3,7 @@
 from typing import Any, Literal, TypedDict
 
 Bump = Literal["major", "minor", "patch", ""]
-HumanDecision = Literal["approved", "rejected", ""]
+HumanDecision = Literal["draft_release", "draft_pr", "exit", ""]
 
 
 class ReleaseState(TypedDict, total=False):
@@ -13,6 +13,7 @@ class ReleaseState(TypedDict, total=False):
     candidate_sha: str
     diff_summary: str
     changed_paths: list[str]
+    change_category: str
     docs_ready: bool
     docs_findings: dict[str, Any]
     bump: Bump
@@ -20,5 +21,8 @@ class ReleaseState(TypedDict, total=False):
     reasons: list[str]
     release_notes: str
     regression_findings: dict[str, Any]
+    ready_for_release: bool
+    recommendation: str
+    suggestions: list[str]
     human_decision: HumanDecision
     release_result: dict[str, str]

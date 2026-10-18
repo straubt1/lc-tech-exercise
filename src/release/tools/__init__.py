@@ -1,1 +1,1 @@
-"""Tools the agents will call. Bodies are stubs."""
+"""Tools the agents call."""
