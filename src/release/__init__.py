@@ -1,1 +1,1 @@
-"""Human-gated semantic version review for a Terraform module."""
+"""Human-gated semantic version release for a public Terraform module."""

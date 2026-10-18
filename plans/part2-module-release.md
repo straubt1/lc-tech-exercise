@@ -4,127 +4,105 @@ Each increment below is independently completable and leaves a runnable end-to-e
 
 ## Problem
 
-A platform team is about to publish the next version of an AWS Terraform module. The system decides the semantic version, checks the contract and the docs, and stops for a person to approve. Approval creates a branch named `vX.Y.Z`. That branch is the release. Regression against ministack is part of the workflow shape and is not implemented yet.
+A platform team is about to publish the next version of a public Terraform module. The system reads the last published tag, checks the docs, proposes a semantic version, and stops for a person to approve. Approval creates a GitHub Release marked draft. Regression against ministack is a placeholder and may stay that way.
 
-This is the Part 2 agent system from [Take-Home Assignment.md](../Take-Home%20Assignment.md): LangChain and LangGraph, specialized stages, external data, a human gate, and LangSmith evaluations with custom metrics.
+This is the Part 2 agent system from [Take-Home Assignment.md](../Take-Home%20Assignment.md): LangChain agents, a LangGraph workflow, a human gate, and LangSmith cloud for traces and evaluations.
 
 ## Locked choices
 
-- Python, LangGraph `StateGraph`, `init_chat_model` from `.env`, `interrupt` plus `Command` for the human gate, `InMemorySaver` with a `thread_id`.
-- The module is [straubt1/terraform-aws-object-storage](https://github.com/straubt1/terraform-aws-object-storage). The checkout defaults to `/workspace/terraform-aws-object-storage` via `MODULE_PATH`. This repo does not vendor the module.
-- Previous versions are git tags whose names start with `v` and match `vMAJOR.MINOR.PATCH`. Load searches `refs/tags`, ignores peeled tag refs (`^{}`), and diffs the `latest` branch against the highest semver tag. On this module the version tags are `v1.0.0` and `v1.0.1`, so a typical run baselines `v1.0.1` against `latest`. The `main` branch is ignored for release review. Tags such as `v1.2` or `v1.2.3-rc1` are ignored. A published release is still a new `vX.Y.Z` branch at the candidate sha on `latest`; the next tag for baseline semver is created separately when the team tags that release.
-- Ministack is already running. A later regression step will use environment variables only (`AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID=test`, `AWS_SECRET_ACCESS_KEY=test`, `AWS_DEFAULT_REGION`, `AWS_EC2_METADATA_DISABLED=true`). No Terraform edits and no real credentials.
-- Docs-only changes produce bump `none` and do not publish a version branch.
-- Removing, renaming, or retyping a variable or output, adding a required variable, or changing a default is major. Adding an optional variable or output is minor. A behavior fix that keeps the contract is patch.
-- A missing description, an unmarked sensitive value, or a stale README or changelog is a blocker. Blockers do not by themselves change the bump.
-- `regression.status = not_run` is shown to the human and is not treated as a pass or a failure. The basic path can still reach the release gate.
-- The model never publishes. A plain node creates the `vX.Y.Z` branch only after approve or edit.
+- Python. The entrypoint is `python -m release.tf_module_releaser`. It loads `.env` and starts the graph.
+- Each specialist is built with `langchain.agents.create_agent`. Prompts are files under `src/release/prompts/`. They are not inline strings.
+- The outer workflow is a LangGraph `StateGraph` with `interrupt` and `Command` on one `thread_id`. The checkpointer is `InMemorySaver`.
+- The module is the public repo [straubt1/terraform-aws-object-storage](https://github.com/straubt1/terraform-aws-object-storage), set with `GITHUB_REPO=owner/name`. The candidate ref is `GITHUB_CANDIDATE_REF` and defaults to `latest`. `main` is not the candidate. There is no local checkout on this path.
+- Published versions are git tags named `vMAJOR.MINOR.PATCH`. The diff agent will compare the highest of those tags to the candidate ref. Tags such as `v1.2` or `v1.2.3-rc1` are ignored.
+- Public reads use the GitHub HTTPS API and do not send a token. `GH_TOKEN` is used only by the draft-release tool, and only after that tool is implemented. It is not a tool argument, not in a prompt, and not on graph state.
+- A draft GitHub Release is the publish action. The releaser does not create a `vX.Y.Z` branch.
+- The version agent chooses `major`, `minor`, or `patch` from the diff. A breaking contract change is major. A backward-compatible addition is minor. A behavior fix that keeps the contract is patch. Regression output is not an input until that agent exists.
+- `regression_findings.status = not_run` is shown to the human. It is not a pass and it is not a failure.
+- The model never publishes. After approve, a later increment may call `create_draft_release`. Reject creates nothing.
+- Observability and evals go to LangSmith cloud (`https://api.smith.langchain.com`). Tracing turns on only when `LANGSMITH_TRACING=true` and both `LANGSMITH_API_KEY` and `LANGSMITH_PROJECT` are set. The eval dataset name is `tf-module-release`.
 
 ## Runtime order
 
 ```mermaid
 flowchart LR
-  load[Load]
-  contract[Contract]
-  docs[Docs]
-  regression[Regression]
-  version[Version]
-  review[Human gate]
-  release[Release branch]
-  load --> contract --> docs --> regression --> version --> review --> release
+  diff[Diff agent]
+  docs[Docs agent]
+  version[Version agent]
+  regression[Regression placeholder]
+  release[Release agent and human gate]
+  diff --> docs --> version --> regression --> release
 ```
 
-Load, the human gate, and the release branch are plain Python. Contract, docs, and version are agents. Regression stays a plain placeholder until a later project.
-
-Logical order: read the module, judge the interface, judge the docs, record that tests did not run, decide the version from all of that, then ask a person to publish the next `vX.Y.Z` branch.
+Diff, docs, version, and release are `create_agent` graphs. Regression is a plain node. The release node interrupts before any publish tool. Resume is `approved` or `rejected` on the same thread.
 
 ## State
 
-One `TypedDict` from the first increment, so later agents fill fields instead of reshaping the graph.
+One `TypedDict`, so later increments fill fields instead of reshaping the graph.
 
-- Identity: `module_path`, `base_ref` (the highest `vX.Y.Z` tag), `candidate_ref`, `candidate_sha`, `diff_summary`, `changed_paths`
-- Evidence: `interface`, `contract_findings`, `docs_findings`, `regression_findings`
-- Decision: `bump` (`major`, `minor`, `patch`, `none`), `proposed_version` (the branch name, such as `v1.3.0`), `reasons`, `blockers`, `ready_for_release`, `release_notes`
-- Human: `human_decision` (`approved`, `edited`, `rejected`), `human_edited_version`, `human_edited_notes`
-- Result: `release_result` with status, branch name, and url only
+- Identity: `repo`, `candidate_ref`, `base_ref`, `candidate_sha`, `diff_summary`, `changed_paths`
+- Docs: `docs_ready`, `docs_findings`
+- Decision: `bump` (`major`, `minor`, `patch`), `proposed_version`, `reasons`, `release_notes`
+- Regression: `regression_findings`
+- Human: `human_decision` (`approved`, `rejected`)
+- Result: `release_result` with `status`, `tag`, and `url`
 
 Gold labels never go on this state. The token never goes on this state.
 
-## Graph rules
+## Agents
 
-- Increment 1 compiles the full chain. Contract, docs, and regression are pass-throughs that write an explicit not-run finding.
-- Later increments replace a pass-through with an agent and leave the edges alone.
-- Version is the only agent that sees every finding. Its prompt says a not-run stage was not run, and it must not invent a pass.
-- Review always calls `interrupt` with the bump, proposed branch, notes, blockers, and the three finding summaries.
-- Reject ends with no branch. Approve creates `proposed_version`. Edit creates `human_edited_version` and uses the edited notes. The edited name must still match `vX.Y.Z`.
-- No redraft loop in the basic path.
+| Agent | Tools | Prompt | This stub |
+| --- | --- | --- | --- |
+| Diff | `list_version_tags`, `compare_refs` | `prompts/diff.md` | Built, not invoked. Writes a stub summary. |
+| Docs | `read_repo_file` | `prompts/docs.md` | Built, not invoked. Writes a stub finding. |
+| Version | none | `prompts/version.md` | Built, not invoked. Writes an empty bump. |
+| Regression | none | none | Placeholder. Status `not_run`. |
+| Release | `create_draft_release` | `prompts/release.md` | Built only after approve. The tool is not called. |
 
-## Release publisher and secrets
-
-One function, `publish_release(branch, sha, notes) -> {status, url}`, called only by the release node. It creates a branch named `vX.Y.Z` at the candidate sha. It does not create a git tag.
-
-- Dry-run and the local demo create the branch in the module checkout only. No token and no remote.
-- Live publish also pushes that branch. The default publisher shells to `gh` or git. `PUBLISHER=mcp` swaps in a GitHub MCP client with the same arguments. Agents are not given either one.
-- `GH_TOKEN` stays in the environment or in the MCP server config. It is not a tool argument, not in the prompt, not in checkpointed state, and not on the command line. `gh` reads the environment itself.
-- Tool and trace payloads are branch, sha, and notes.
-- `RELEASE_ENABLED` unset or false records `status: dry_run` and the branch that would be created. A local demo may still create that branch in the checkout. Pushing requires `RELEASE_ENABLED=true` and a token present in the environment.
-- The eval target never resumes past the interrupt. The release node also refuses when `RELEASE_ENABLED` is false, so a resumed eval still cannot publish.
-- `.env` stays gitignored. `.env.example` lists the variable names with empty values.
+Tool bodies return `not implemented` and do not call GitHub.
 
 ## Increments
 
-### 1. Basic end-to-end path
+### 1. Runnable stub
 
-Files under `src/release/`: `state.py`, `policy.py`, `graph.py`, `nodes.py`, `agents.py`, `cli.py`, plus `.env.example`.
+Files under `src/release/`: `tf_module_releaser.py`, `graph.py`, `state.py`, `config.py`, `agents/`, `tools/`, `prompts/`, `observability.py`, `evals.py`.
 
-Load reads the module at `MODULE_PATH`, resolves the `latest` branch (not `main`), selects the highest `vX.Y.Z` tag (`v1.0.1` on terraform-aws-object-storage), and records the candidate sha, changed paths, and a short diff from that tag to `latest`. Pass-throughs write `{status: not_run}`. The version agent is a structured call with no tools. The CLI runs until the interrupt, asks for approve, edit, or reject, and resumes.
+The CLI runs until the interrupt, asks for approve or reject, and resumes. Approve records `status: stub`. Reject records `status: rejected`. Neither creates a draft release. `evals.run_experiment` names the LangSmith cloud dataset and raises until a later increment.
 
-Done when a run against `latest` prints a bump and a proposed `vX.Y.Z` branch, the human choice is resumed on the same thread, and the default result is a dry-run release record. No token required.
+Done when `uv run pytest` passes and `uv run python -m release.tf_module_releaser` reaches the human gate without a token.
 
-### 2. Live release branch
+### 2. Diff agent
 
-Add `publish_release` and the `RELEASE_ENABLED` guard. Cover dry-run, reject, and a refused push when the flag is off. Assert a sample token string never appears in the returned state.
+Invoke the diff agent. Implement `list_version_tags` and `compare_refs` against the public GitHub HTTPS API. No token. Record the highest `vX.Y.Z` tag, the candidate sha, changed paths, and the summary.
 
-Done when a local approve creates the `vX.Y.Z` branch in the checkout, a live run with the flag on pushes it through `gh` or the MCP publisher, and an eval-style run cannot.
+Done when a run against `straubt1/terraform-aws-object-storage` fills `base_ref` and `diff_summary` from `v1.0.1` to `latest`.
 
-### 3. Contract agent
+### 3. Docs agent
 
-Extend load to extract variables and outputs without a model. Replace the contract pass-through with an agent that has no tools. It reports unclear descriptions, sensitive values not marked sensitive, optional variables with no default, and whether a validation block is warranted. A suggestion is included only when it proposes one.
+Invoke the docs agent. Implement `read_repo_file`. It checks that the README documents variables and outputs and that a CHANGELOG is present at the candidate ref.
 
-Done when those findings show up in the interrupt and the version agent cites them in blockers or reasons.
+Done when those findings show up in the interrupt.
 
-### 4. Docs agent
+### 4. Version agent
 
-Run terraform-docs in plain code and put the drift on state. Replace the docs pass-through with an agent that judges whether the README, examples, and changelog match the diff. It does not re-grade description prose.
+Invoke the version agent with structured output and no tools. It reads the diff summary and chooses `major`, `minor`, or `patch`. It must not treat regression `not_run` as a pass.
 
-Done when a stale changelog or example becomes a blocker and a docs-only diff stays bump `none`.
+Done when the interrupt shows a bump and a proposed `vX.Y.Z` tag.
 
-### 5. Evaluation
+### 5. Draft release
 
-Recommended set, enough for the assignment:
+Call `create_draft_release` only after approve, and only when `RELEASE_ENABLED=true` and `GH_TOKEN` is present in the environment. The tool creates a GitHub Release with `draft: true`. The token is read inside the tool. A missing flag records a dry run and does not call GitHub. The eval target never resumes past the interrupt.
 
-- Dataset of about ten synthetic scenarios committed as JSON. Rows cover removed variable, new required variable, new optional variable, default change, docs-only, unmarked sensitive, missing changelog, stale example, contract-stable bugfix, and a minor bump with a stale README.
-- Each row has gold bump, gold blockers, and gold `ready_for_release`. Gold is read only by evaluators.
-- The experiment target invokes the graph and returns at the interrupt.
-- Custom deterministic evaluators: exact bump match, blocker precision and recall, ready-flag match, and a trace check that `publish_release` was not called.
-- One component eval runs the version agent on frozen contract and docs findings, so a wrong bump can be blamed on the decision rather than an upstream agent.
-- LangSmith project and dataset names are explicit. Tracing stays on for CLI runs.
+Done when a local approve with the flag off creates nothing, and a live run with the flag on opens a draft release.
 
-Deeper options, designed here and built only after the recommended set is green:
+### 6. LangSmith evaluations
 
-- Replay ranges between `vX.Y.Z` tags from the real module when those tags follow the policy.
-- Separate datasets for the contract agent and the docs agent. Description quality can add an LLM-as-judge rubric beside the deterministic sensitive and default checks. Validation snippets are graded by parse and by variable name.
-- Trajectory evaluators for stage order and for every not-run status.
-- Edit distance between the proposal and the human-edited notes, recorded only from real CLI sessions.
-- At most two prompt variants in one LangSmith experiment.
-- When regression exists, add fixture rows of normalized plan summaries. Experiments keep using fixtures so Docker is not on the eval path.
+Dataset `tf-module-release` on LangSmith cloud, about ten rows: removed variable, new required variable, new optional variable, default change, docs-only, missing changelog, missing README outputs, contract-stable bugfix, and a minor bump with a stale README.
 
-Done when `python -m evals.run_experiment` prints the recommended metrics in LangSmith and the dataset is committed.
+Custom evaluators: exact bump match, docs-ready match, and a trace check that `create_draft_release` was not called. The experiment target invokes the graph and returns at the interrupt. One component eval runs the version agent on a frozen diff summary.
 
-### 6. Demo and friction log
-
-Add `demo/script.md` for a five to ten minute recording: one happy release branch, one blocked release, the interrupt, and the LangSmith experiment. The demo uses branch `latest` against tag `v1.0.1` in the terraform-aws-object-storage checkout. Append framework friction to `docs/friction-log.md` as it happens. Map the result to business KPIs in the presentation later: escaped breaking changes, review time per release, and releases blocked for contract or doc gaps.
+Done when `python -m release.evals` prints the metrics from LangSmith cloud and the dataset is committed.
 
 ## Reserved: regression
 
-Not an increment. When it is built, a plain node will check out the highest `vX.Y.Z` tag, apply it, and plan the candidate against that state, using the running ministack and the environment variables above. The version agent will then see replacements, destroys, and apply errors. Until then the node remains the increment 1 pass-through, and the human gate shows that tests did not run.
+Not an increment. If it is built, it will plan the candidate against the highest published tag using ministack and the AWS endpoint environment variables in `AGENTS.md`. Until then the node stays the increment 1 placeholder, and the human gate shows that tests did not run.

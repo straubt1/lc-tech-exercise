@@ -1,27 +1,17 @@
-"""Run the release graph until the human gate, then resume that same thread."""
+"""Load env, run the release graph to the human gate, then resume that same thread."""
 
 import argparse
-import os
 import sys
 import uuid
 from collections.abc import Callable
 from typing import Any
 
-from dotenv import load_dotenv
 from langgraph.types import Command
 
+from release.config import Settings, load_settings
 from release.graph import build_graph
-from release.policy import DEFAULT_MODULE_PATH
+from release.observability import configure_langsmith
 from release.state import ReleaseState
-
-
-def resolve_module_path(explicit: str | None = None) -> str:
-    if explicit:
-        return explicit
-    from_env = os.environ.get("MODULE_PATH", "").strip()
-    if from_env:
-        return from_env
-    return DEFAULT_MODULE_PATH
 
 
 def interrupt_value(result: Any) -> dict[str, Any] | None:
@@ -56,69 +46,61 @@ def pending_interrupt(graph: Any, config: dict[str, Any], result: Any) -> dict[s
     return value
 
 
-def format_review(state: ReleaseState, packet: dict[str, Any]) -> str:
-    blockers = packet.get("blockers") or []
+def format_review(packet: dict[str, Any]) -> str:
     reasons = packet.get("reasons") or []
-    blocker_lines = "\n".join(f"- {item}" for item in blockers) or "- (none)"
     reason_lines = "\n".join(f"- {item}" for item in reasons) or "- (none)"
-    finding_lines = []
-    for name in ("contract_findings", "docs_findings", "regression_findings"):
-        finding = packet.get(name) or {}
-        status = finding.get("status", "")
-        summary = finding.get("summary")
-        line = f"- {name.removesuffix('_findings')}: {status}"
-        if summary:
-            line = f"{line} ({summary})"
-        finding_lines.append(line)
+    docs = packet.get("docs_findings") or {}
+    regression = packet.get("regression_findings") or {}
     proposed = packet.get("proposed_version") or "(none)"
     return "\n".join(
         [
-            f"Module {state.get('module_path', '')}",
-            f"Base {state.get('base_ref', '')}",
-            f"Candidate {state.get('candidate_ref', '')} {state.get('candidate_sha', '')}",
+            f"Repo {packet.get('repo', '')}",
+            f"Candidate {packet.get('candidate_ref', '')}",
+            f"Base {packet.get('base_ref') or '(none)'}",
             "",
-            f"Bump: {packet.get('bump', '')}",
-            f"Proposed branch: {proposed}",
-            f"Ready for release: {packet.get('ready_for_release', False)}",
-            "Blockers:",
-            blocker_lines,
+            f"Bump: {packet.get('bump') or '(none)'}",
+            f"Proposed version: {proposed}",
+            "Diff:",
+            str(packet.get("diff_summary") or "(none)"),
+            "Docs:",
+            str(docs.get("summary") or docs.get("status") or "(none)"),
+            "Regression:",
+            str(regression.get("summary") or regression.get("status") or "(none)"),
             "Reasons:",
             reason_lines,
             "Notes:",
             str(packet.get("release_notes") or "(none)"),
-            "Findings:",
-            *finding_lines,
         ]
     )
 
 
-def read_decision_from_stdin(packet: dict[str, Any], state: ReleaseState) -> dict[str, str]:
-    print(format_review(state, packet), flush=True)
+def read_decision_from_stdin(packet: dict[str, Any]) -> dict[str, str]:
+    print(format_review(packet), flush=True)
     while True:
-        choice = input("Decision [approve/edit/reject]: ").strip().lower()
+        choice = input("Decision [approve/reject]: ").strip().lower()
         if choice in {"approve", "approved"}:
-            return {"decision": "approved", "version": "", "notes": ""}
+            return {"decision": "approved"}
         if choice in {"reject", "rejected"}:
-            return {"decision": "rejected", "version": "", "notes": ""}
-        if choice in {"edit", "edited"}:
-            version = input("Branch name (vX.Y.Z): ").strip()
-            notes = input("Release notes: ").strip()
-            return {"decision": "edited", "version": version, "notes": notes}
-        print("Enter approve, edit, or reject.")
+            return {"decision": "rejected"}
+        print("Enter approve or reject.")
 
 
 def run(
-    module_path: str,
+    settings: Settings,
     thread_id: str,
-    read_decision: Callable[[dict[str, Any], ReleaseState], dict[str, str]],
+    read_decision: Callable[[dict[str, Any]], dict[str, str]],
 ) -> ReleaseState:
+    configure_langsmith(settings)
     graph = build_graph()
     config = {"configurable": {"thread_id": thread_id}}
-    first = graph.invoke({"module_path": module_path}, config)
+    first = graph.invoke(
+        {"repo": settings.github_repo, "candidate_ref": settings.candidate_ref},
+        config,
+    )
     packet = pending_interrupt(graph, config, first)
     if packet is None:
         raise RuntimeError("graph finished without the human gate")
-    decision = read_decision(packet, graph.get_state(config).values)
+    decision = read_decision(packet)
     resumed = graph.invoke(Command(resume=decision), config)
     if pending_interrupt(graph, config, resumed) is not None:
         raise RuntimeError("graph interrupted again after the human gate")
@@ -127,30 +109,33 @@ def run(
 
 def format_result(result: dict[str, str]) -> str:
     status = result.get("status", "")
-    branch = result.get("branch", "")
+    tag = result.get("tag", "")
     url = result.get("url", "")
-    lines = [f"Release status={status} branch={branch} url={url}"]
-    if status == "dry_run":
-        lines.append("Dry run only. No branch was created.")
+    lines = [f"Release status={status} tag={tag} url={url}"]
+    if status == "stub":
+        lines.append("Stub only. No draft release was created.")
     elif status == "rejected":
-        lines.append("Rejected. No branch was created.")
-    elif status == "invalid_version":
-        lines.append("Edited branch name must match vX.Y.Z. No branch was created.")
+        lines.append("Rejected. No draft release was created.")
     return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:
-    load_dotenv()
-    parser = argparse.ArgumentParser(description="Review a Terraform module release and record a dry run.")
-    parser.add_argument("--module-path", default=None, help="Module checkout. Defaults to MODULE_PATH.")
+    parser = argparse.ArgumentParser(
+        description="Review a public Terraform module and stop before a draft GitHub release."
+    )
     parser.add_argument("--thread-id", default=None, help="Checkpoint thread. Defaults to a new id.")
     args = parser.parse_args(argv)
 
+    settings = load_settings()
     thread_id = args.thread_id or str(uuid.uuid4())
-    module_path = resolve_module_path(args.module_path)
+    tracing = "on" if settings.langsmith_tracing else "off"
+    print(f"Repo {settings.github_repo}", flush=True)
+    print(f"Candidate {settings.candidate_ref}", flush=True)
+    print(f"Model {settings.model or '(unset)'}", flush=True)
+    print(f"LangSmith tracing {tracing} endpoint {settings.langsmith_endpoint}", flush=True)
     print(f"Thread {thread_id}", flush=True)
     try:
-        values = run(module_path, thread_id, read_decision_from_stdin)
+        values = run(settings, thread_id, read_decision_from_stdin)
     except EOFError:
         print("Decision input closed before a choice.", file=sys.stderr)
         return 1
@@ -161,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     result = values.get("release_result") or {}
     print(format_result(result), flush=True)
     print(f"Resumed thread {thread_id}", flush=True)
-    if result.get("status") in {"dry_run", "rejected"}:
+    if result.get("status") in {"stub", "rejected"}:
         return 0
     return 1
 

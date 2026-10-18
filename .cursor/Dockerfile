@@ -36,7 +36,7 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     "ministack==${MINISTACK_VERSION}" \
     && python3 -c "import importlib.metadata as m; print('ministack', m.version('ministack'))"
 
-# uv (Python deps for release.cli). Install to /usr/local/bin so login-shell install finds it.
+# uv (Python deps for release.tf_module_releaser). Install to /usr/local/bin so login-shell install finds it.
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh \
     && uv --version
 

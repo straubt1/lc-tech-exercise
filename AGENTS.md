@@ -14,30 +14,29 @@ export AWS_DEFAULT_REGION=us-east-1
 export AWS_EC2_METADATA_DISABLED=true
 ```
 
-The module under review is [straubt1/terraform-aws-object-storage](https://github.com/straubt1/terraform-aws-object-storage). The install step clones it to `/workspace/terraform-aws-object-storage` when missing and fetches the `latest` branch. `MODULE_PATH` defaults to that directory. **Candidate code is always branch `latest`; `main` is not used.** Previous published versions are git tags named `vX.Y.Z` (tags that start with `v` and match semver).
+The module under review is the public repo [straubt1/terraform-aws-object-storage](https://github.com/straubt1/terraform-aws-object-storage). The releaser reads it over the GitHub HTTPS API. `GITHUB_REPO` defaults to `straubt1/terraform-aws-object-storage`. **Candidate code is always branch `latest`; `main` is not used.** Previous published versions are git tags named `vX.Y.Z` (tags that start with `v` and match semver). No token is required until the draft-release tool is implemented.
 
-API keys and `GH_TOKEN` come from the Cloud Agents secrets tab. Do not write them into the repo, the Dockerfile, or agent state. Leave `RELEASE_ENABLED` unset unless a person is explicitly publishing a version branch.
+API keys and `GH_TOKEN` come from the Cloud Agents secrets tab. Do not write them into the repo, the Dockerfile, or agent state. Leave `RELEASE_ENABLED` unset unless a person is explicitly creating a draft release. `GH_TOKEN` stays out of prompts, tool arguments, and graph state.
 
 ### Run the release agent (`uv`)
 
-The environment image includes `uv`. Install (on environment builds) runs `uv sync --frozen` in `/workspace`, clones the Terraform module, and verifies `uv run python -m release.cli --help`.
+The environment image includes `uv`. Install (on environment builds) runs `uv sync --frozen` in `/workspace`, clones the Terraform module, and verifies `uv run python -m release.tf_module_releaser --help`.
 
 From the repo root:
 
 ```bash
 cd /workspace
-uv run python -m release.cli
+uv run python -m release.tf_module_releaser
 ```
 
-Optional: `--module-path` (defaults to `MODULE_PATH` or `/workspace/terraform-aws-object-storage`), `--thread-id` to reuse a checkpoint.
+Optional: `--thread-id` to reuse a checkpoint.
 
-**Secrets required for a full run** (Cloud Agents → Secrets; names match `.env.example`):
+**Secrets required for a traced model run** (Cloud Agents → Secrets; names match `.env.example`):
 
-- `MODEL` — provider:model for `init_chat_model` (for example `openai:gpt-4.1-mini`)
+- `MODEL` — provider:model (for example `openai:gpt-4.1-mini`). The stub builds agents and does not call the model, so a stub run can leave this empty.
 - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` matching the provider in `MODEL`
+- `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY`, and `LANGSMITH_PROJECT` for LangSmith cloud. The endpoint is `https://api.smith.langchain.com`.
 
-Optional: `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` for traces.
-
-The CLI stops at the human gate on stdin (`approve` / `edit` / `reject`). Without API keys the graph fails at the version agent step.
+The CLI stops at the human gate on stdin (`approve` / `reject`). The stub does not create a draft release.
 
 **Tests:** `uv run pytest`
