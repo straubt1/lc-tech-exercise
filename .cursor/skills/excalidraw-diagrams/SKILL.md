@@ -1,7 +1,7 @@
 ---
 name: excalidraw-diagrams
 description: >-
-  Authors and revises Excalidraw scenes in docs/diagrams, exports a PNG, and
+  Authors and revises Excalidraw scenes in plans/diagrams, exports a PNG, and
   inspects that image before finishing. Use when creating, versioning, or
   editing an .excalidraw diagram, or when the user asks for an architecture
   diagram.
@@ -9,7 +9,7 @@ description: >-
 
 # Excalidraw diagrams
 
-The `.excalidraw` file in `docs/diagrams/` is the source. A PNG next to it is the preview.
+The `.excalidraw` file in `plans/diagrams/` is the source. A PNG next to it is the preview.
 
 The user can also open the JSON at http://localhost:8080 and export it back over the same path.
 
@@ -27,7 +27,7 @@ After creating or changing a scene:
 2. Export a PNG beside the scene:
 
 ```bash
-npx @moona3k/excalidraw-export docs/diagrams/<name>.excalidraw -o docs/diagrams/<name>.png --scale 2
+npx @moona3k/excalidraw-export plans/diagrams/<name>.excalidraw -o plans/diagrams/<name>.png --scale 2
 ```
 
 3. Read the PNG and check the picture: clipped or overlapping text, missing arrows, a diamond branch that does not land on its box, a legend that covers a card, and uneven gaps.

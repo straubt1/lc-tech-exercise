@@ -1,0 +1,182 @@
+{
+  "examples": [
+    {
+      "inputs": {
+        "id": "docs-match",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": ["v1.0.0"],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\nversion 1.0.0\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## 1.0.0\n\n- Initial bucket module.\n"
+          }
+        },
+        "compares": {
+          "v1.0.0...latest": "status: identical\nahead_by: 0\nno changes"
+        }
+      },
+      "outputs": {
+        "review_status": "pass",
+        "suggested_version": "v1.0.0",
+        "finding_files": [],
+        "versions": [{"version": "v1.0.0", "published": true}]
+      }
+    },
+    {
+      "inputs": {
+        "id": "optional-variable-stale-readme",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": ["v1.0.0"],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n\nvariable \"force_destroy\" {\n  description = \"Destroy the bucket even when it has objects.\"\n  type        = bool\n  default     = false\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## Unreleased\n\n- Add optional force_destroy. It has a default of false.\n\n## 1.0.0\n\n- Initial bucket module.\n"
+          }
+        },
+        "compares": {
+          "v1.0.0...latest": "status: ahead\nahead_by: 1\nfiles:\n- variables.tf (modified)\n\n--- variables.tf\n+variable \"force_destroy\" {\n+  description = \"Destroy the bucket even when it has objects.\"\n+  type        = bool\n+  default     = false\n+}\n"
+        }
+      },
+      "outputs": {
+        "review_status": "fail",
+        "suggested_version": "v1.1.0",
+        "finding_files": ["README.md"],
+        "versions": [{"version": "v1.0.0", "published": true}]
+      }
+    },
+    {
+      "inputs": {
+        "id": "required-variable-documented",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": ["v1.0.0"],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n\nvariable \"kms_key_id\" {\n  description = \"KMS key ARN.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n- kms_key_id (string, required): KMS key ARN.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## 2.0.0\n\n- Add required kms_key_id. Configurations that omit it cannot apply.\n\n## 1.0.0\n\n- Initial bucket module.\n"
+          }
+        },
+        "compares": {
+          "v1.0.0...latest": "status: ahead\nahead_by: 1\nfiles:\n- variables.tf (modified)\n\n--- variables.tf\n+variable \"kms_key_id\" {\n+  description = \"KMS key ARN.\"\n+  type        = string\n+}\n"
+        }
+      },
+      "outputs": {
+        "review_status": "pass",
+        "suggested_version": "v2.0.0",
+        "finding_files": [],
+        "versions": [
+          {"version": "v1.0.0", "published": true},
+          {"version": "v2.0.0", "published": false}
+        ]
+      }
+    },
+    {
+      "inputs": {
+        "id": "output-renamed",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": ["v1.0.0"],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_arn\" {\n  description = \"ARN of the bucket.\"\n  value       = aws_s3_bucket.this.arn\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## 2.0.0\n\n- Rename output bucket_id to bucket_arn.\n\n## 1.0.0\n\n- Initial bucket module.\n"
+          }
+        },
+        "compares": {
+          "v1.0.0...latest": "status: ahead\nahead_by: 1\nfiles:\n- outputs.tf (modified)\n\n--- outputs.tf\n-output \"bucket_id\" {\n-  description = \"ID of the bucket.\"\n+output \"bucket_arn\" {\n+  description = \"ARN of the bucket.\"\n"
+        }
+      },
+      "outputs": {
+        "review_status": "fail",
+        "suggested_version": "v2.0.0",
+        "finding_files": ["README.md"],
+        "versions": [
+          {"version": "v1.0.0", "published": true},
+          {"version": "v2.0.0", "published": false}
+        ]
+      }
+    },
+    {
+      "inputs": {
+        "id": "changelog-misses-fix",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": ["v1.0.0"],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## 1.0.0\n\n- Initial bucket module.\n",
+            "main.tf": "resource \"aws_s3_bucket\" \"this\" {\n  bucket = var.bucket_name\n}\n"
+          }
+        },
+        "compares": {
+          "v1.0.0...latest": "status: ahead\nahead_by: 1\nfiles:\n- main.tf (modified)\n\n--- main.tf\n-  # bug: bucket policy omitted\n+  # behavior fix: attach the bucket policy\nThe variable and output contract is unchanged.\n"
+        }
+      },
+      "outputs": {
+        "review_status": "fail",
+        "suggested_version": "v1.0.1",
+        "finding_files": ["CHANGELOG.md"],
+        "versions": [{"version": "v1.0.0", "published": true}]
+      }
+    },
+    {
+      "inputs": {
+        "id": "no-tags-no-version",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": [],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## Unreleased\n\n- Initial bucket module.\n"
+          }
+        },
+        "compares": {}
+      },
+      "outputs": {
+        "review_status": "pass",
+        "suggested_version": "v1.0.0",
+        "finding_files": [],
+        "versions": []
+      }
+    },
+    {
+      "inputs": {
+        "id": "changelog-version-without-tag",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": [],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## 1.2.0\n\n- Initial bucket module.\n"
+          }
+        },
+        "compares": {}
+      },
+      "outputs": {
+        "review_status": "pass",
+        "suggested_version": "v1.2.0",
+        "finding_files": [],
+        "versions": [{"version": "v1.2.0", "published": false}]
+      }
+    }
+  ]
+}

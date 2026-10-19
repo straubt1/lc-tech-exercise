@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lc-tech-exercise"
 version = "0.1.0"
-description = "Human-gated semantic version release for a Terraform module."
+description = "Human-gated review of a Terraform module before publish."
 requires-python = ">=3.11"
 dependencies = [
     "langchain>=1.0",
@@ -13,7 +13,6 @@ dependencies = [
     "langchain-openai>=0.3",
     "langgraph>=1.0",
     "langsmith>=0.3",
-    "pydantic>=2",
     "python-dotenv>=1.0",
 ]
 
@@ -24,7 +23,7 @@ dev = ["pytest>=8"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-release = ["prompts/*.md"]
+review = ["prompts/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

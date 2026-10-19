@@ -1,12 +1,12 @@
 ---
-description: Author and revise Excalidraw scenes in docs/diagrams. Use when creating, versioning, or editing a diagram.
-globs: docs/diagrams/**/*.excalidraw
+description: Author and revise Excalidraw scenes in plans/diagrams. Use when creating, versioning, or editing a diagram.
+globs: plans/diagrams/**/*.excalidraw
 alwaysApply: false
 ---
 
 # Excalidraw diagrams
 
-Scenes are JSON files in `docs/diagrams/`. The `.excalidraw` file is the source. The user opens it at http://localhost:8080 and exports `.excalidraw` back over the same path.
+Scenes are JSON files in `plans/diagrams/`. The `.excalidraw` file is the source. The user opens it at http://localhost:8080 and exports `.excalidraw` back over the same path.
 
 ```bash
 docker run -d -p 8080:80 --name my-excalidraw-instance excalidraw/excalidraw:latest
@@ -19,7 +19,7 @@ The image listens on container port 80.
 After a create or edit, export a PNG beside the scene, read that image, and fix what it shows. Repeat until the picture is clean. The JSON stays the file to edit.
 
 ```bash
-npx @moona3k/excalidraw-export docs/diagrams/<name>.excalidraw -o docs/diagrams/<name>.png --scale 2
+npx @moona3k/excalidraw-export plans/diagrams/<name>.excalidraw -o plans/diagrams/<name>.png --scale 2
 ```
 
 The exporter draws text in the hand-drawn font, not Helvetica. Fix overlap and clipping. Do not restyle the scene to match that font.

@@ -24,10 +24,16 @@ Created evals codified
 ### Retool
 
 We are going to start over - i have deleted all the agent code and diagrams, feel free to look back at the last commit to see what has changed but i do NOT want to carry that flow over.
+Only Consider part 2 of the Take-Home Assignment.md
+The goal in this prompt is to create the plan, not implement yet
+
+We will create this plan in plans/part2-module-review.md (I have left the old part2-module-release.md for reference only but do not let that file drive decisions, it is completely throw away). Create several steps to this plan that we will implement in order. FIrst step is to frame out the python in a clear and structured way, Avoiding complexity at all costs, but while still functioning. There will likely be 3-5 steps overall
+
 
 Be as SIMPLE as possible
 Use Langchain OSS code and Langgraph python packages everywhere
 do not use pydantic unless you have a strong justification
+we will use LangSmith to run evaluations, track agent traces, and measure performance metrics. THIS IS CRITICAL so design accordingly.
 
 I wanted to reduce the number of agents and their purpose.
 
@@ -67,3 +73,29 @@ Craig
 - take it a step further, what are the things that are outside of you
   - what does this affect outside?
   - go out and consuming workspaces
+
+
+
+## Part 1
+
+### Facts (that we made up mostly)
+
+- GKE, standalone cluster
+- LangSmith v0.17+
+- SmithDB instead
+
+### Data Stores
+
+Postgres
+Redis
+Blob Storage
+Clickhouse
+
+All should be External
+
+ClickHouse is the columnar database that stores LangSmith traces and feedback.
+- Grows as trace volume grows
+- Large inputs/outputs/attachments go into Blob Storage
+- PSQL holds metadata and stays small
+- Q: can traces be cleaned up? if so, what is a good retention period?
+ 
