@@ -411,6 +411,8 @@ def test_read_pr_template_returns_the_first_existing_file_and_read_file_stays_on
     assert tools["read_pr_template"].invoke({"paths": ["missing.md"], "ref": "latest"}) == ""
     assert tools["read_file"].invoke({"path": "main.tf", "ref": "latest"}) == "resource {}\n"
     assert tools["read_file"].invoke({"path": "README.md", "ref": "latest"}) == "not in this run"
+    allowed["files"] = set()
+    assert tools["read_file"].invoke({"path": "main.tf", "ref": "latest"}) == "not in this run"
 
 
 def _tool_call(tool, args):

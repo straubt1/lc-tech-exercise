@@ -1,6 +1,4 @@
-from langchain.agents import create_agent
-
-from review.agents import read_prompt
+from review.agents import make
 
 SCHEMA = {
     "title": "RecommendResult",
@@ -27,10 +25,4 @@ SCHEMA = {
 
 
 def build(model, tools):
-    return create_agent(
-        model=model,
-        tools=tools,
-        system_prompt=read_prompt("recommend.md"),
-        response_format=SCHEMA,
-        name="recommend",
-    )
+    return make(model, tools, "recommend.md", SCHEMA, "recommend")

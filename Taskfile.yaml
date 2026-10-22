@@ -14,11 +14,7 @@ tasks:
     interactive: true
     cmds:
       - |
-        docker run --rm -it \
-          --env-file .env \
-          {{if .GITHUB_REPO}}-e GITHUB_REPO="{{.GITHUB_REPO}}"{{end}} \
-          {{if .GITHUB_CANDIDATE_REF}}-e GITHUB_CANDIDATE_REF="{{.GITHUB_CANDIDATE_REF}}"{{end}} \
-          {{if .TRIVY_SEVERITY}}-e TRIVY_SEVERITY="{{.TRIVY_SEVERITY}}"{{end}} \
+        docker run --rm -it --env-file .env \
           {{.IMAGE}}
 
   object-storage:
@@ -47,3 +43,38 @@ tasks:
         vars:
           GITHUB_REPO: terraform-google-modules/terraform-google-project-factory
           GITHUB_CANDIDATE_REF: main
+
+  test:
+    desc: Run the unit tests, skipping the live LangSmith experiment
+    cmds:
+      - uv run pytest -q -k "not langsmith"
+
+  test:tools:
+    desc: Run the tool tests
+    cmds:
+      - uv run pytest -q tests/test_checks.py tests/test_reader.py
+
+  test:agents:
+    desc: Run the agent tests
+    cmds:
+      - uv run pytest -q tests/test_agents.py
+
+  test:normalize:
+    desc: Run the normalize tests
+    cmds:
+      - uv run pytest -q tests/test_normalize.py
+
+  test:nodes:
+    desc: Run the node tests
+    cmds:
+      - uv run pytest -q tests/test_nodes.py
+
+  test:graph:
+    desc: Run the graph tests
+    cmds:
+      - uv run pytest -q tests/test_graph.py
+
+  test:display:
+    desc: Run the display tests
+    cmds:
+      - uv run pytest -q tests/test_display.py

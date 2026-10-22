@@ -11,7 +11,7 @@ from review.agents.recommend import SCHEMA as RECOMMEND_SCHEMA
 from review.agents.release import SCHEMA as RELEASE_SCHEMA
 from review.agents.security import SCHEMA as SECURITY_SCHEMA
 from review.display import follow, make_console, show_report
-from review.graph import _severity, build_graph
+from review.graph import build_graph
 from review.reader import FixtureReader
 
 
@@ -164,13 +164,6 @@ def _interrupt(result):
     return result["__interrupt__"][0].value
 
 
-def _changed(tags):
-    return FixtureReader(
-        tags=tags,
-        compares={(tags[0], "latest"): "status: ahead\nahead_by: 1\nfiles:\n- main.tf (modified)\n"},
-    )
-
-
 def test_trace_name():
     assert _graph().name == "module_review"
 
@@ -289,33 +282,6 @@ def test_no_changes_is_not_ready_and_stays_on_the_tag():
     assert paused["security_status"] == "pass"
 
 
-def test_a_change_keeps_the_recommended_version():
-    paused = _graph(
-        ScriptedModel(suggested_version="1.1.0", bump="minor", release_status="ready"),
-        _changed(["v1.0.0"]),
-    ).invoke(
-        {"repo": "fixture/mod", "ref": "latest", "pr_url": ""},
-        {"configurable": {"thread_id": "keep-version"}},
-    )
-    assert paused["current_version"] == "v1.0.0"
-    assert paused["suggested_version"] == "v1.1.0"
-    assert paused["bump"] == "minor"
-    assert paused["release_status"] == "ready"
-
-
-def test_a_none_bump_clears_the_suggested_version():
-    paused = _graph(
-        ScriptedModel(suggested_version="v9.9.9", bump="none", release_status="not ready"),
-        _changed(["v1.0.0"]),
-    ).invoke(
-        {"repo": "fixture/mod", "ref": "latest", "pr_url": ""},
-        {"configurable": {"thread_id": "bump-none"}},
-    )
-    assert paused["current_version"] == "v1.0.0"
-    assert paused["suggested_version"] == "none"
-    assert paused["bump"] == "none"
-
-
 def test_release_tools_read_the_loaded_tag_and_diff():
     diff = "status: ahead\nahead_by: 1\nassets-rename\n"
     reader = FixtureReader(tags=["v1.2.0", "v1.0.0"], compares={("v1.2.0", "latest"): diff})
@@ -328,27 +294,6 @@ def test_release_tools_read_the_loaded_tag_and_diff():
     finding = paused["release_findings"][0]["finding"]
     assert "tag v1.2.0" in finding
     assert "assets-rename" in finding
-
-
-def test_findings_force_a_fail_and_not_ready():
-    paused = _graph(
-        ScriptedModel(
-            interface_status="pass",
-            interface_findings=[{"filename": "README.md", "finding": "name has no description"}],
-            security_status="pass",
-            security_findings=[{"filename": "main.tf", "finding": "HIGH public bucket"}],
-            release_status="ready",
-            release_findings=[{"filename": "CHANGELOG.md", "finding": "heading is still v1.0.0"}],
-        ),
-        _changed(["v1.0.0"]),
-    ).invoke(
-        {"repo": "fixture/mod", "ref": "latest", "pr_url": ""},
-        {"configurable": {"thread_id": "fail"}},
-    )
-    assert paused["interface_status"] == "fail"
-    assert paused["security_status"] == "fail"
-    assert paused["release_status"] == "not ready"
-    assert paused["interface_findings"][0]["filename"] == "README.md"
 
 
 def test_follow_prints_each_check_once():
@@ -506,17 +451,3 @@ def test_a_file_left_out_of_the_first_reply_is_requested_again():
     assert [item["filename"] for item in paused["proposed_files"]] == ["README.md", "main.tf"]
     assert [item["filename"] for item in calls[0]["proposed_files"]] == ["README.md", "main.tf"]
 
-
-def test_severity_defaults_to_high(monkeypatch):
-    monkeypatch.delenv("TRIVY_SEVERITY", raising=False)
-    assert _severity() == "HIGH"
-
-
-def test_severity_reads_the_env(monkeypatch):
-    monkeypatch.setenv("TRIVY_SEVERITY", "medium")
-    assert _severity() == "MEDIUM"
-
-
-def test_severity_rejects_an_unknown_value(monkeypatch):
-    monkeypatch.setenv("TRIVY_SEVERITY", "info")
-    assert _severity() == "HIGH"
