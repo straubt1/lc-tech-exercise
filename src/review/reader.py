@@ -10,13 +10,28 @@ import urllib.request
 
 from langsmith import traceable
 
-_RELEASE_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
+_RELEASE_TAG = re.compile(
+    r"^v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)"
+    r"(?:-(?P<pre>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
+)
 _API = "https://api.github.com"
 
 
-def _semver(tag: str) -> tuple[int, int, int]:
-    major, minor, patch = tag[1:].split(".")
-    return int(major), int(minor), int(patch)
+def _semver(tag: str) -> tuple:
+    match = _RELEASE_TAG.fullmatch(tag)
+    major = int(match.group("major"))
+    minor = int(match.group("minor"))
+    patch = int(match.group("patch"))
+    pre = match.group("pre")
+    if not pre:
+        return (major, minor, patch, 1)
+    parts = []
+    for item in pre.split("."):
+        if item.isdigit():
+            parts.append((0, int(item)))
+        else:
+            parts.append((1, item))
+    return (major, minor, patch, 0, tuple(parts))
 
 
 def _next_link(headers) -> str | None:
@@ -99,6 +114,60 @@ def _relative(path: str) -> str | None:
     if any(part in {"", ".."} for part in parts):
         return None
     return path
+
+
+def _root_tf(path: str) -> bool:
+    return "/" not in path and path.endswith(".tf")
+
+
+def _heading_section(text: str, title: str) -> str | None:
+    headings = list(re.finditer(r"^#{1,3} +(.+?)\s*$", text, re.M))
+    for index, heading in enumerate(headings):
+        if heading.group(1).strip().lower() != title.lower():
+            continue
+        start = heading.end()
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        return text[start:end].strip()
+    return None
+
+
+def _changelog_top(text: str) -> str:
+    lines = text.splitlines()
+    headings = [index for index, line in enumerate(lines) if line.startswith("## ")]
+    if len(headings) >= 2:
+        lines = lines[: headings[1]]
+    else:
+        lines = lines[:40]
+    return "\n".join(lines).strip()
+
+
+def _interface(files: dict[str, str]) -> str:
+    root = [path for path in sorted(files) if _root_tf(path)]
+    terraform = ["none"] if not root else []
+    for path in root:
+        terraform.append(f"## {path}\n{files[path].rstrip()}")
+    readme = files.get("README.md", "")
+    inputs = _heading_section(readme, "Inputs")
+    output_section = _heading_section(readme, "Outputs")
+    if inputs is None and output_section is None:
+        clipped = readme if len(readme) <= 2000 else readme[:2000] + "\n...truncated"
+        inputs = clipped
+        output_section = clipped
+    changelog = _changelog_top(files.get("CHANGELOG.md", ""))
+    parts = [
+        "root terraform",
+        "\n\n".join(terraform),
+        "",
+        "readme inputs",
+        inputs or "none",
+        "",
+        "readme outputs",
+        output_section or "none",
+        "",
+        "changelog top",
+        changelog or "none",
+    ]
+    return "\n".join(parts)
 
 
 def _listing(files: dict[str, str]) -> str:
@@ -187,6 +256,9 @@ class Reader:
     def read_file(self, path: str, ref: str) -> str:
         return ""
 
+    def interface(self, ref: str) -> str:
+        return ""
+
     def search(self, pattern: str, ref: str) -> str:
         return ""
 
@@ -220,6 +292,9 @@ class FixtureReader(Reader):
     def read_file(self, path: str, ref: str) -> str:
         return self._files.get((ref, path), f"not found: {path}@{ref}")
 
+    def interface(self, ref: str) -> str:
+        return _interface(self._at(ref))
+
     def search(self, pattern: str, ref: str) -> str:
         return _search_files(self._at(ref), pattern)
 
@@ -236,6 +311,8 @@ class GithubReader(Reader):
         self._fetch = fetch
         self._download = download
         self._copies: dict[str, _Copy] = {}
+        self._release_tags: list[str] | None = None
+        self._compared: dict[tuple[str, str], str] = {}
         self._lock = threading.Lock()
 
     def check(self, repo: str, ref: str) -> str:
@@ -283,6 +360,13 @@ class GithubReader(Reader):
     def list_files(self, ref: str) -> str:
         return self.copy_repo(ref)
 
+    def interface(self, ref: str) -> str:
+        message = self.copy_repo(ref)
+        cached = self._copies[ref]
+        if cached.error:
+            return message
+        return _interface(cached.files)
+
     def read_file(self, path: str, ref: str) -> str:
         message = self.copy_repo(ref)
         cached = self._copies[ref]
@@ -301,20 +385,34 @@ class GithubReader(Reader):
         return _search_files(cached.files, pattern)
 
     def list_release_tags(self) -> list[str]:
-        tags: list[str] = []
-        url = f"{_API}/repos/{self.repo}/tags?per_page=100"
-        while url:
+        """One tags request. Keeps vX.Y.Z, X.Y.Z, and vX.Y.Z-suffix, newest first."""
+        with self._lock:
+            if self._release_tags is not None:
+                return list(self._release_tags)
+            url = f"{_API}/repos/{self.repo}/tags?per_page=100"
             try:
-                payload, url = self._fetch(url)
+                payload, _next = self._fetch(url)
             except urllib.error.HTTPError as exc:
                 raise RuntimeError(_github_error(exc)) from exc
-            for item in payload:
-                name = item.get("name", "")
-                if _RELEASE_TAG.fullmatch(name):
-                    tags.append(name)
-        return sorted(tags, key=_semver, reverse=True)
+            tags = [
+                item.get("name", "")
+                for item in payload
+                if _RELEASE_TAG.fullmatch(item.get("name", ""))
+            ]
+            self._release_tags = sorted(tags, key=_semver, reverse=True)
+            return list(self._release_tags)
 
     def compare(self, base: str, head: str) -> str:
+        key = (base, head)
+        with self._lock:
+            cached = self._compared.get(key)
+            if cached is not None:
+                return cached
+            text = self._compare(base, head)
+            self._compared[key] = text
+            return text
+
+    def _compare(self, base: str, head: str) -> str:
         base_quoted = urllib.parse.quote(base, safe="")
         head_quoted = urllib.parse.quote(head, safe="")
         url = f"{_API}/repos/{self.repo}/compare/{base_quoted}...{head_quoted}"

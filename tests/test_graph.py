@@ -1,4 +1,5 @@
 import re
+from io import StringIO
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
@@ -10,12 +11,11 @@ from review.agents.recommend import SCHEMA as RECOMMEND_SCHEMA
 from review.agents.review import SCHEMA as REVIEW_SCHEMA
 from review.agents.version import SCHEMA as VERSION_SCHEMA
 from review.agents.version import apply_bump
+from review.display import follow, make_console, show_report
 from review.graph import build_graph
 from review.reader import FixtureReader
 
 _VERSION = re.compile(r"(?:^|[^0-9])v?(\d+\.\d+\.\d+)\b")
-_VARIABLE = re.compile(r'variable\s+"([^"]+)"', re.S)
-_OUTPUT = re.compile(r'output\s+"([^"]+)"', re.S)
 
 
 class ScriptedModel(BaseChatModel):
@@ -30,6 +30,8 @@ class ScriptedModel(BaseChatModel):
     version_findings: list = Field(default_factory=list)
     suggestions: str = "No file changes."
     proposed_files: list = Field(default_factory=list)
+    pr_title: str = ""
+    pr_body: str = ""
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
         system = "\n".join(
@@ -52,6 +54,8 @@ class ScriptedModel(BaseChatModel):
             args = {
                 "suggestions": self.suggestions,
                 "proposed_files": self.proposed_files,
+                "pr_title": self.pr_title,
+                "pr_body": self.pr_body,
             }
         message = AIMessage(
             content="",
@@ -86,13 +90,18 @@ class ReadingModel(BaseChatModel):
             ref = human.split("ref ", 1)[1].split(".", 1)[0].strip()
             if "review agent" in system:
                 return _review_turn(ref, outputs)
-            return _version_turn(ref, outputs)
+            return _version_turn(human)
         message = AIMessage(
             content="",
             tool_calls=[
                 {
                     "name": RECOMMEND_SCHEMA["title"],
-                    "args": {"suggestions": "See findings.", "proposed_files": []},
+                    "args": {
+                        "suggestions": "See findings.",
+                        "proposed_files": [],
+                        "pr_title": "",
+                        "pr_body": "",
+                    },
                     "id": "recommend",
                     "type": "tool_call",
                 }
@@ -129,29 +138,27 @@ def _tool_message(name, args, call_id):
 
 
 def _review_turn(ref, outputs):
-    files = {args["path"]: content for name, args, content in outputs if name == "read_file"}
-    needed = ["variables.tf", "outputs.tf", "README.md", "CHANGELOG.md"]
-    missing = [path for path in needed if path not in files]
-    if missing:
-        message = AIMessage(
-            content="",
-            tool_calls=[
-                {
-                    "name": "read_file",
-                    "args": {"path": path, "ref": ref},
-                    "id": f"read-{path}",
-                    "type": "tool_call",
-                }
-                for path in missing
-            ],
+    text = ""
+    for name, _args, content in outputs:
+        if name == "read_interface":
+            text = content
+    if not text:
+        return ChatResult(
+            generations=[
+                ChatGeneration(
+                    message=_tool_message("read_interface", {"ref": ref}, "interface")
+                )
+            ]
         )
-        return ChatResult(generations=[ChatGeneration(message=message)])
-    readme = files["README.md"]
+    terraform = text.split("\nreadme inputs\n", 1)[0]
+    inputs = _interface_section(text, "readme inputs")
+    readme_outputs = _interface_section(text, "readme outputs")
+    readme = inputs + "\n" + readme_outputs
     findings = []
-    for name in _VARIABLE.findall(files["variables.tf"]):
+    for name in re.findall(r'variable\s+"([^"]+)"', terraform):
         if name not in readme:
             findings.append({"filename": "README.md", "finding": f"missing variable {name}"})
-    for name in _OUTPUT.findall(files["outputs.tf"]):
+    for name in re.findall(r'output\s+"([^"]+)"', terraform):
         if name not in readme:
             findings.append({"filename": "README.md", "finding": f"missing output {name}"})
     message = AIMessage(
@@ -168,6 +175,28 @@ def _review_turn(ref, outputs):
     return ChatResult(generations=[ChatGeneration(message=message)])
 
 
+def _interface_section(text: str, title: str) -> str:
+    marker = f"\n{title}\n"
+    start = text.find(marker)
+    if start < 0:
+        return ""
+    start += len(marker)
+    rest = text[start:]
+    ends = [
+        index
+        for index in (
+            rest.find("\nvariables\n"),
+            rest.find("\noutputs\n"),
+            rest.find("\nreadme inputs\n"),
+            rest.find("\nreadme outputs\n"),
+            rest.find("\nchangelog top\n"),
+        )
+        if index >= 0
+    ]
+    end = min(ends) if ends else len(rest)
+    return rest[:end]
+
+
 def _versions_in_diff(text):
     places = {}
     current = ""
@@ -181,38 +210,32 @@ def _versions_in_diff(text):
     return places
 
 
-def _version_turn(ref, outputs):
-    names = {name for name, _args, _content in outputs}
-    if "list_release_tags" not in names:
-        return ChatResult(
-            generations=[
-                ChatGeneration(
-                    message=_tool_message("list_release_tags", {}, "tags")
-                )
-            ]
-        )
-
+def _brief_parts(human: str) -> tuple[list[str], str]:
     tags = []
-    compared = None
-    for name, _args, content in outputs:
-        if name == "list_release_tags":
-            tags = _parse_tags(content)
-        elif name == "compare":
-            compared = content
-    highest = tags[0] if tags else ""
-    if highest and compared is None:
-        return ChatResult(
-            generations=[
-                ChatGeneration(
-                    message=_tool_message(
-                        "compare",
-                        {"base": highest, "head": ref},
-                        "compare",
-                    )
-                )
-            ]
-        )
+    diff = []
+    mode = ""
+    for line in human.splitlines():
+        if line == "Published versions:":
+            mode = "tags"
+            continue
+        if line.startswith("Latest published version:"):
+            mode = ""
+            continue
+        if line == "Diff:":
+            mode = "diff"
+            continue
+        if line == "Return bump, justification, versions, and findings.":
+            break
+        if mode == "tags" and line:
+            tags.append(line)
+        elif mode == "diff":
+            diff.append(line)
+    return tags, "\n".join(diff)
 
+
+def _version_turn(human):
+    tags, compared = _brief_parts(human)
+    highest = tags[0] if tags else ""
     places = {}
     for version, sources in _versions_in_diff(compared or "").items():
         places.setdefault(version, []).extend(sources)
@@ -243,12 +266,6 @@ def _version_turn(ref, outputs):
         ],
     )
     return ChatResult(generations=[ChatGeneration(message=message)])
-
-
-def _parse_tags(content):
-    if isinstance(content, list):
-        return content
-    return re.findall(r"v\d+\.\d+\.\d+", content)
 
 
 def _suggest(highest, compare):
@@ -283,18 +300,43 @@ def test_trace_name():
 
 def test_a_missing_ref_stops_before_the_agents():
     class Missing(FixtureReader):
+        def __init__(self):
+            super().__init__(tags=["v1.0.0"])
+            self.tag_calls = 0
+
         def check(self, repo: str, ref: str) -> str:
             return f"not found: {repo}@{ref}"
 
-    result = _graph(reader=Missing()).invoke(
+        def list_release_tags(self):
+            self.tag_calls += 1
+            return super().list_release_tags()
+
+    reader = Missing()
+    result = _graph(reader=reader).invoke(
         {"repo": "acme/mod", "ref": "missing", "pr_url": ""},
         {"configurable": {"thread_id": "missing"}},
     )
     assert result["error"] == "not found: acme/mod@missing"
+    assert reader.tag_calls == 0
+    assert "release_tags" not in result
     assert "review_status" not in result
     assert "suggested_version" not in result
     assert "suggestions" not in result
     assert "__interrupt__" not in result
+
+
+def test_a_tag_lookup_failure_stops_before_the_agents():
+    class Broken(FixtureReader):
+        def list_release_tags(self):
+            raise RuntimeError("github error 403: rate limit")
+
+    result = _graph(reader=Broken()).invoke(
+        {"repo": "acme/mod", "ref": "latest", "pr_url": ""},
+        {"configurable": {"thread_id": "tag-error"}},
+    )
+    assert result["error"] == "github error 403: rate limit"
+    assert "release_tags" not in result
+    assert "review_status" not in result
 
 
 def test_a_blank_repo_stops_before_the_agents():
@@ -358,6 +400,14 @@ def test_apply_bump_uses_the_model_choice_inside_the_hard_band():
     )
     assert (version, bump) == ("v2.0.0", "major")
     assert reason.startswith("Major:")
+    version, bump, _reason = apply_bump(
+        "patch",
+        "Patch: small fix after the beta.",
+        "1.2.3-beta",
+        "behavior fix",
+    )
+    assert (version, bump) == ("v1.2.4", "patch")
+    assert apply_bump("patch", "", "0.9.0", "no changes")[0] == "0.9.0"
 
 
 def test_review_copies_the_ref():
@@ -423,6 +473,77 @@ def test_a_note_that_is_not_a_finding_is_dropped():
     assert paused["review_status"] == "pass"
 
 
+def test_a_version_response_without_versions_stays_empty():
+    class OmitVersions(ScriptedModel):
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            result = super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+            for call in result.generations[0].message.tool_calls:
+                if call["name"] == VERSION_SCHEMA["title"]:
+                    call["args"].pop("versions", None)
+            return result
+
+    paused = _graph(OmitVersions()).invoke(
+        {"repo": "fixture/mod", "ref": "latest", "pr_url": ""},
+        {"configurable": {"thread_id": "omit-versions"}},
+    )
+    assert paused["versions"] == []
+    assert paused["suggested_version"] == "v1.2.0"
+
+
+def test_version_fetches_tags_once_and_compares_the_latest():
+    class Counting(FixtureReader):
+        def __init__(self):
+            super().__init__(
+                tags=["v1.2.0", "v1.0.0"],
+                compares={("v1.2.0", "latest"): "no changes"},
+            )
+            self.tag_calls = 0
+            self.compare_calls = []
+
+        def list_release_tags(self):
+            self.tag_calls += 1
+            return super().list_release_tags()
+
+        def compare(self, base, head):
+            self.compare_calls.append((base, head))
+            return super().compare(base, head)
+
+    seen = []
+
+    class Recording(ScriptedModel):
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            system = "\n".join(
+                message.content
+                for message in messages
+                if message.type == "system" and isinstance(message.content, str)
+            )
+            if "version agent" in system:
+                seen.append(
+                    "\n".join(
+                        message.content
+                        for message in messages
+                        if message.type == "human" and isinstance(message.content, str)
+                    )
+                )
+            return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+    reader = Counting()
+    paused = _graph(Recording(), reader).invoke(
+        {"repo": "fixture/mod", "ref": "latest", "pr_url": ""},
+        {"configurable": {"thread_id": "one-tag-call"}},
+    )
+    assert reader.tag_calls == 1
+    assert reader.compare_calls == [("v1.2.0", "latest")]
+    assert paused["release_tags"] == ["v1.2.0", "v1.0.0"]
+    published = seen[0].split("Published versions:\n", 1)[1].split("\nLatest", 1)[0]
+    assert published == "v1.2.0\nv1.0.0"
+    assert "Latest published version: v1.2.0" in seen[0]
+    assert paused["versions"] == [
+        {"version": "v1.2.0", "published": True, "source": "tag"},
+        {"version": "v1.0.0", "published": True, "source": "tag"},
+    ]
+
+
 def test_a_version_finding_fails_the_review():
     app = _graph(
         ScriptedModel(
@@ -440,7 +561,30 @@ def test_a_version_finding_fails_the_review():
     assert paused["version_findings"][0]["filename"] == "CHANGELOG.md"
 
 
-def test_no_exits_without_a_pull_request():
+def test_follow_prints_each_agent_once_and_skips_the_prose_blob():
+    app = _graph()
+    config = {"configurable": {"thread_id": "display-once"}}
+    buffer = StringIO()
+    console = make_console(file=buffer, force_terminal=False, width=80)
+    follow(
+        app,
+        {"repo": "fixture/mod", "ref": "latest", "pr_url": ""},
+        config,
+        console,
+        status="review and version",
+        steps=True,
+    )
+    assert app.get_state(config).interrupts
+    show_report(console, app.get_state(config).values)
+    report = buffer.getvalue()
+    assert "pass" in report
+    assert "v1.2.0" in report
+    assert "No file changes." not in report
+    follow(app, Command(resume="no"), config, console)
+    assert buffer.getvalue().count("v1.2.0") == report.count("v1.2.0")
+
+
+def test_no_exits_without_a_pull_request(capsys):
     def opener(**_kwargs):
         raise AssertionError("opener called")
 
@@ -462,6 +606,7 @@ def test_no_exits_without_a_pull_request():
     assert finished["decision"] == "no"
     assert finished["pr_url"] == ""
     assert "__interrupt__" not in finished
+    assert "No file changes." not in capsys.readouterr().out
 
 
 def test_yes_with_no_files_does_not_open_a_pull_request():
@@ -490,6 +635,8 @@ def test_yes_opens_a_pull_request_for_docs_only():
         review_findings=[{"filename": "README.md", "finding": "missing variable force_destroy"}],
         suggested_version="v1.2.0",
         suggestions="Update the readme for v1.2.0.",
+        pr_title="Document the Missing Variable for v1.2.0",
+        pr_body="## Summary\nThe readme omits force_destroy.\n",
         proposed_files=[
             {"filename": "README.md", "content": "# Readme\n"},
             {"filename": "CHANGELOG.md", "content": "# Changelog\n"},
@@ -514,6 +661,8 @@ def test_yes_opens_a_pull_request_for_docs_only():
     assert "fail" in call["review_status"]
     assert "v1.2.0" in call["suggested_version"]
     assert any(item["filename"] == "README.md" for item in call["findings"])
+    assert call["title"] == "Document the Missing Variable for v1.2.0"
+    assert "force_destroy" in call["body"]
 
 
 def _module_files(readme, changelog, variables):

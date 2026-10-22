@@ -21,6 +21,7 @@ class State(TypedDict, total=False):
     repo: str
     ref: str
     error: str
+    release_tags: list[str]
     review_status: str
     review_findings: list[Finding]
     suggested_version: str
@@ -30,5 +31,7 @@ class State(TypedDict, total=False):
     version_findings: list[Finding]
     suggestions: str
     proposed_files: list[ProposedFile]
+    pr_title: str
+    pr_body: str
     decision: str
     pr_url: str

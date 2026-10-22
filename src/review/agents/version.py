@@ -4,7 +4,7 @@ from langchain.agents import create_agent
 
 from review.agents import read_prompt
 
-_SEMVER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+_SEMVER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$")
 
 SCHEMA = {
     "title": "VersionResult",
@@ -195,6 +195,23 @@ def apply_bump(
     label = chosen.capitalize()
     reason = f"{label} bump from {highest} to {version}: {_because(chosen, diff)}"
     return version, chosen, reason
+
+
+def release_brief(repo: str, ref: str, tags: list[str], diff: str) -> str:
+    """Published version strings, the latest, and the one compare diff."""
+    latest = tags[0] if tags else ""
+    lines = [
+        f"Version repo {repo} at ref {ref}.",
+        "Published versions:",
+        *tags,
+    ]
+    if latest:
+        lines.append(f"Latest published version: {latest}")
+        lines.extend(["", "Diff:", diff])
+    else:
+        lines.append("Latest published version: none")
+    lines.append("Return bump, justification, versions, and findings.")
+    return "\n".join(lines)
 
 
 def build(model, tools):

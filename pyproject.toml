@@ -14,10 +14,14 @@ dependencies = [
     "langgraph>=1.0",
     "langsmith>=0.3",
     "python-dotenv>=1.0",
+    "rich>=15.0.0",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "langgraph-cli[inmem]>=0.4.37",
+    "pytest>=8",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -8,6 +8,8 @@ SCHEMA = {
     "type": "object",
     "properties": {
         "suggestions": {"type": "string"},
+        "pr_title": {"type": "string"},
+        "pr_body": {"type": "string"},
         "proposed_files": {
             "type": "array",
             "items": {
@@ -20,7 +22,7 @@ SCHEMA = {
             },
         },
     },
-    "required": ["suggestions", "proposed_files"],
+    "required": ["suggestions", "pr_title", "pr_body", "proposed_files"],
 }
 
 

@@ -1,32 +1,44 @@
-import base64
 import io
-import json
 import tarfile
 import threading
 import urllib.error
 
 from review.reader import GithubReader
-from review.tools.github import _run_suffix, open_pull_request
+from review.tools.github import _run_suffix, open_pull_request, pull_request_title
 
 
 def _http_error(code):
     return urllib.error.HTTPError("https://api.github.com", code, "error", None, io.BytesIO(b""))
 
 
-def test_release_tags_keep_only_full_semver_and_follow_pages():
+def test_release_tags_are_one_request_and_keep_full_semver():
+    calls = []
     pages = {
         "https://api.github.com/repos/acme/mod/tags?per_page=100": (
-            [{"name": "v1.2"}, {"name": "v1.2.3-rc1"}, {"name": "v1.0.0"}],
+            [
+                {"name": "v1.2"},
+                {"name": "v1.2.3-rc1"},
+                {"name": "v1.0.0"},
+                {"name": "0.9.0-beta"},
+                {"name": "v1.2.0"},
+                {"name": "latest"},
+                {"name": "1.1.0"},
+                {"name": "1.2.0-beta"},
+            ],
             "https://api.github.com/page-2",
         ),
-        "https://api.github.com/page-2": ([{"name": "v1.2.0"}, {"name": "latest"}], None),
     }
 
     def fetch(url):
+        calls.append(url)
         return pages[url]
 
-    tags = GithubReader("acme/mod", fetch=fetch).list_release_tags()
-    assert tags == ["v1.2.0", "v1.0.0"]
+    reader = GithubReader("acme/mod", fetch=fetch)
+    tags = reader.list_release_tags()
+    assert calls == ["https://api.github.com/repos/acme/mod/tags?per_page=100"]
+    assert tags == ["v1.2.3-rc1", "v1.2.0", "1.2.0-beta", "1.1.0", "v1.0.0", "0.9.0-beta"]
+    assert reader.list_release_tags() == tags
+    assert calls == ["https://api.github.com/repos/acme/mod/tags?per_page=100"]
 
 
 def _archive(files: dict[str, str]) -> bytes:
@@ -67,6 +79,49 @@ def test_copy_repo_downloads_once_and_search_finds_blocks_in_any_filename():
     assert 'locals.tf:1: variable "bucket_name" {}' in found
     assert 'notes.md:1: output "bucket_arn" {}' in found
     assert "hidden" not in found
+
+
+def test_interface_returns_the_contract_without_the_rest_of_the_files():
+    blob = _archive(
+        {
+            "variables.tf": (
+                'variable "force_destroy" {\n'
+                '  description = "Destroy the bucket."\n'
+                "  type        = bool\n"
+                "  default     = false\n"
+                "}\n\n"
+                'resource "aws_s3_bucket" "this" {\n'
+                '  bucket = "not-part-of-the-interface-BODY"\n'
+                "}\n"
+            ),
+            "outputs.tf": (
+                'output "bucket_id" {\n'
+                '  description = "ID of the bucket."\n'
+                "  value = aws_s3_bucket.this.id\n"
+                "}\n"
+            ),
+            "examples/demo.tf": 'variable "hidden" {}\n',
+            "modules/bucket/main.tf": 'variable "nested" {}\n',
+            "README.md": (
+                "# Mod\n\n## Inputs\n\n| bucket_name |\n\n"
+                "## Outputs\n\n| bucket_id |\n\n"
+                "## Resources\n\nwhole readme body\n"
+            ),
+            "CHANGELOG.md": (
+                "# Changelog\n\n## v1.0.1\n\n- Top.\n\n"
+                "## v1.0.0\n\n- Old body that is not the top section.\n"
+            ),
+        }
+    )
+    text = GithubReader("acme/mod", download=lambda url: blob).interface("latest")
+    assert 'variable "force_destroy"' in text
+    assert "type        = bool" in text
+    assert "not-part-of-the-interface-BODY" in text
+    assert 'output "bucket_id"' in text
+    assert "hidden" not in text
+    assert "nested" not in text
+    assert "whole readme body" not in text
+    assert "Old body" not in text
 
 
 def test_copy_repo_downloads_once_when_two_callers_race():
@@ -211,7 +266,10 @@ def test_compare_trace_records_the_get_and_redacts_the_token(monkeypatch):
 
 
 def test_compare_lists_files_and_patches():
+    calls = []
+
     def fetch(url):
+        calls.append(url)
         assert url.endswith("/compare/v1.0.0...latest")
         return {
             "status": "ahead",
@@ -225,9 +283,59 @@ def test_compare_lists_files_and_patches():
             ],
         }, None
 
-    text = GithubReader("acme/mod", fetch=fetch).compare("v1.0.0", "latest")
+    reader = GithubReader("acme/mod", fetch=fetch)
+    text = reader.compare("v1.0.0", "latest")
     assert "variables.tf (modified)" in text
     assert "+variable" in text
+    assert reader.compare("v1.0.0", "latest") == text
+    assert len(calls) == 1
+
+
+def test_a_blank_title_becomes_a_title_and_a_blank_body_lists_findings(monkeypatch):
+    monkeypatch.setenv("GH_TOKEN", "secret-token")
+    assert pull_request_title("fail v1.2.0", "v1.2.0", ["CHANGELOG.md"]) == (
+        "[Review Agent] Update the Changelog for v1.2.0"
+    )
+    assert pull_request_title(
+        "Document the Bucket Rename for v1.0.2",
+        "v1.0.2",
+        ["CHANGELOG.md"],
+    ) == "[Review Agent] Document the Bucket Rename for v1.0.2"
+
+    def request(method, url, token, payload=None):
+        if method == "GET" and "/git/commits/" in url:
+            return {"tree": {"sha": "tree123"}}
+        if method == "GET" and "/git/ref/" in url:
+            return {"object": {"sha": "abc123"}}
+        if method == "POST" and url.endswith("/git/blobs"):
+            return {"sha": "blob"}
+        if method == "POST" and url.endswith("/git/trees"):
+            return {"sha": "tree-new"}
+        if method == "POST" and url.endswith("/git/commits"):
+            request.commit = payload
+            return {"sha": "commit-new"}
+        if method == "POST" and url.endswith("/pulls"):
+            request.pull = payload
+            return {"html_url": "https://github.com/acme/mod/pull/8"}
+        return {}
+
+    request.pull = None
+    request.commit = None
+    open_pull_request(
+        repo="acme/mod",
+        base="latest",
+        suggested_version="v1.2.0",
+        review_status="fail",
+        findings=[{"filename": "README.md", "finding": "missing variable"}],
+        proposed_files=[{"filename": "README.md", "content": "# Readme\n"}],
+        request=request,
+        suffix=lambda: "a1b2c3",
+    )
+    assert request.pull["title"] == "[Review Agent] Update the Readme for v1.2.0"
+    assert request.commit["author"]["name"] == "Review Agent"
+    assert request.commit["committer"] == request.commit["author"]
+    assert "Review status: fail" in request.pull["body"]
+    assert "README.md: missing variable" in request.pull["body"]
 
 
 def test_run_suffix_is_six_alphanumeric_characters():
@@ -244,12 +352,16 @@ def test_open_pull_request_commits_docs_and_uses_the_token_from_the_environment(
 
     def request(method, url, token, payload=None):
         calls.append((method, url, token, payload))
+        if method == "GET" and "/git/commits/" in url:
+            return {"tree": {"sha": "tree123"}}
         if method == "GET" and "/git/ref/" in url:
             return {"object": {"sha": "abc123"}}
-        if method == "GET" and "/contents/" in url:
-            return {"sha": "file-sha"}
-        if method == "PUT":
-            return {"content": {"path": url}}
+        if method == "POST" and url.endswith("/git/blobs"):
+            return {"sha": "blob-" + str(len(calls))}
+        if method == "POST" and url.endswith("/git/trees"):
+            return {"sha": "tree-new"}
+        if method == "POST" and url.endswith("/git/commits"):
+            return {"sha": "commit-new"}
         if method == "POST" and url.endswith("/pulls"):
             return {"html_url": "https://github.com/acme/mod/pull/7"}
         return {}
@@ -265,6 +377,8 @@ def test_open_pull_request_commits_docs_and_uses_the_token_from_the_environment(
             {"filename": "CHANGELOG.md", "content": "# Changelog\n"},
             {"filename": "main.tf", "content": "nope\n"},
         ],
+        title="Document the Missing Variable for v1.2.0",
+        body="## Summary\nThe readme omits a variable.\n",
         request=request,
         suffix=lambda: "a1b2c3",
     )
@@ -275,18 +389,32 @@ def test_open_pull_request_commits_docs_and_uses_the_token_from_the_environment(
     assert methods[0][0] == "GET"
     assert methods[1] == ("POST", "https://api.github.com/repos/acme/mod/git/refs")
     assert calls[1][3] == {"ref": "refs/heads/review/v1.2.0-a1b2c3", "sha": "abc123"}
-    put_paths = [url for method, url, _token, _payload in calls if method == "PUT"]
-    assert put_paths == [
-        "https://api.github.com/repos/acme/mod/contents/README.md",
-        "https://api.github.com/repos/acme/mod/contents/CHANGELOG.md",
+    assert not any("/contents/" in url for _method, url, _token, _payload in calls)
+    blobs = [
+        payload["content"]
+        for method, url, _token, payload in calls
+        if method == "POST" and url.endswith("/git/blobs")
     ]
+    assert blobs == ["# Readme\n", "# Changelog\n"]
+    tree = next(
+        payload
+        for method, url, _token, payload in calls
+        if method == "POST" and url.endswith("/git/trees")
+    )
+    assert [item["path"] for item in tree["tree"]] == ["README.md", "CHANGELOG.md"]
+    commit = next(
+        payload
+        for method, url, _token, payload in calls
+        if method == "POST" and url.endswith("/git/commits")
+    )
+    assert commit["author"] == {
+        "name": "Review Agent",
+        "email": "review-agent@users.noreply.github.com",
+    }
+    assert commit["committer"] == commit["author"]
+    assert commit["parents"] == ["abc123"]
     pull = calls[-1][3]
-    assert pull["title"] == "fail v1.2.0"
+    assert pull["title"] == "[Review Agent] Document the Missing Variable for v1.2.0"
+    assert pull["body"] == "## Summary\nThe readme omits a variable."
     assert pull["head"] == "review/v1.2.0-a1b2c3"
     assert pull["base"] == "latest"
-    assert "Review status: fail" in pull["body"]
-    assert "Suggested version: v1.2.0" in pull["body"]
-    assert "README.md: missing variable" in pull["body"]
-    encoded = base64.b64encode(b"# Readme\n").decode()
-    assert calls[3][3]["content"] == encoded
-    assert json.loads(json.dumps(calls[3][3]))["branch"] == "review/v1.2.0-a1b2c3"
