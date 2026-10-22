@@ -11,7 +11,6 @@ from langchain.tools import tool
 from review.reader import Reader
 
 _API = "https://api.github.com"
-_DOC_FILES = {"README.md", "CHANGELOG.md"}
 _SUFFIX_ALPHABET = string.ascii_lowercase + string.digits
 _AGENT_GIT = {
     "name": "Review Agent",
@@ -24,66 +23,72 @@ def _run_suffix() -> str:
     return "".join(secrets.choice(_SUFFIX_ALPHABET) for _ in range(6))
 
 
-def _tool_set(reader: Reader):
+def _as_list(text: str) -> list[str] | str:
+    """Turn a newline-joined list into paths or match lines. Leave errors as text."""
+    if text.startswith(("not found:", "github error", "invalid pattern:")):
+        return text
+    if text in {"", "no files", "no matches"}:
+        return []
+    return text.splitlines()
+
+
+def build_listing_tools(reader: Reader):
     @tool
-    def list_files(ref: str) -> str:
-        """List files in the local copy of a git ref, one path per line."""
-        return reader.list_files(ref)
+    def list_files(ref: str) -> list[str] | str:
+        """List file paths in the local copy of a git ref.
+
+        A successful result is a JSON array of paths.
+        """
+        return _as_list(reader.list_files(ref))
 
     @tool
-    def read_file(path: str, ref: str) -> str:
-        """Read one file from the local copy of a git ref."""
-        return reader.read_file(path, ref)
+    def search(pattern: str, ref: str) -> list[str] | str:
+        """Search the local copy for a regular expression. Skips examples/.
+
+        A successful result is a JSON array of path:line: text matches.
+        """
+        return _as_list(reader.search(pattern, ref))
 
     @tool
-    def read_interface(ref: str) -> str:
-        """Return every root .tf file, the README Inputs and Outputs sections, and the changelog top section."""
-        return reader.interface(ref)
+    def list_release_tags() -> list[str] | str:
+        """List published tags, newest first.
 
-    @tool
-    def search(pattern: str, ref: str) -> str:
-        """Search the local copy for a regular expression. Skips examples/."""
-        return reader.search(pattern, ref)
-
-    @tool
-    def list_release_tags() -> str:
-        """List published tags, newest first. A tag is MAJOR.MINOR.PATCH with an optional v and an optional prerelease suffix such as -beta."""
+        A successful result is a JSON array of tags. A tag is MAJOR.MINOR.PATCH
+        with an optional v and an optional prerelease suffix.
+        """
         try:
-            return "\n".join(reader.list_release_tags())
+            return list(reader.list_release_tags())
         except RuntimeError as exc:
             return str(exc)
 
+    return [list_files, search, list_release_tags]
+
+
+def build_recommend_tools(reader: Reader, allowed: dict | None = None):
+    scope = allowed if allowed is not None else {"files": set()}
+
     @tool
-    def compare(base: str, head: str) -> str:
-        """Describe changes between a published tag and the candidate ref."""
-        return reader.compare(base, head)
+    def read_pr_template(paths: list[str], ref: str) -> str:
+        """Read the first existing pull request template from an ordered list of paths.
 
-    return {
-        "list_files": list_files,
-        "read_file": read_file,
-        "read_interface": read_interface,
-        "search": search,
-        "list_release_tags": list_release_tags,
-        "compare": compare,
-    }
+        Returns that path and its text. Returns empty when none of the paths exist.
+        """
+        names = paths if isinstance(paths, list) else [paths]
+        for path in names:
+            text = reader.read_file(str(path), ref)
+            if text.startswith("not found:"):
+                continue
+            return f"{path}\n{text}"
+        return ""
 
+    @tool
+    def read_file(path: str, ref: str) -> str:
+        """Read one file named by a finding. Refuses any other path."""
+        if path not in scope["files"]:
+            return "not in this run"
+        return reader.read_file(path, ref)
 
-def build_tools(reader: Reader):
-    tools = _tool_set(reader)
-    return [
-        tools["read_interface"],
-        tools["compare"],
-    ]
-
-
-def build_version_tools(_reader: Reader):
-    """Tags are already on state, and the version step loads the diff, so the model does not call GitHub."""
-    return []
-
-
-def build_recommend_tools(reader: Reader):
-    tools = _tool_set(reader)
-    return [tools["list_files"], tools["read_file"]]
+    return [read_pr_template, read_file]
 
 
 def _request(method: str, url: str, token: str, payload: dict | None = None):
@@ -169,9 +174,9 @@ def _commit_as_agent(request, repo: str, token: str, branch: str, parent: str, f
     request("PATCH", f"{_API}/repos/{repo}/git/refs/{ref}", token, {"sha": commit["sha"]})
 
 
-def _pull_request_body(review_status: str, suggested_version: str, findings: list[dict]) -> str:
+def _pull_request_body(status: str, suggested_version: str, findings: list[dict]) -> str:
     lines = [
-        f"Review status: {review_status}",
+        status,
         f"Suggested version: {suggested_version}",
         "",
         "Findings:",
@@ -183,11 +188,18 @@ def _pull_request_body(review_status: str, suggested_version: str, findings: lis
     return "\n".join(lines)
 
 
+def _committable(path: str) -> bool:
+    path = (path or "").strip()
+    if not path or path.startswith("/") or path.startswith("\\"):
+        return False
+    return all(part not in {"", ".", ".."} for part in path.split("/"))
+
+
 def open_pull_request(
     repo: str,
     base: str,
     suggested_version: str,
-    review_status: str,
+    status: str,
     findings: list[dict],
     proposed_files: list[dict],
     title: str = "",
@@ -198,7 +210,7 @@ def open_pull_request(
     token = os.environ.get("GH_TOKEN", "").strip()
     if not token:
         raise RuntimeError("GH_TOKEN is not set")
-    files = [item for item in proposed_files if item.get("filename") in _DOC_FILES]
+    files = [item for item in proposed_files if _committable(item.get("filename") or "")]
     if not files:
         return ""
 
@@ -235,7 +247,7 @@ def open_pull_request(
             "base": base,
             "body": body.strip()
             if body and body.strip()
-            else _pull_request_body(review_status, suggested_version, findings),
+            else _pull_request_body(status, suggested_version, findings),
         },
     )
     return pull["html_url"]

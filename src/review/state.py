@@ -11,24 +11,19 @@ class ProposedFile(TypedDict):
     content: str
 
 
-class FoundVersion(TypedDict):
-    version: str
-    published: bool
-    source: str
-
-
 class State(TypedDict, total=False):
     repo: str
     ref: str
     error: str
-    release_tags: list[str]
-    review_status: str
-    review_findings: list[Finding]
+    interface_status: str
+    interface_findings: list[Finding]
+    security_status: str
+    security_findings: list[Finding]
+    release_status: str
+    release_findings: list[Finding]
+    current_version: str
     suggested_version: str
     bump: str
-    justification: str
-    versions: list[FoundVersion]
-    version_findings: list[Finding]
     suggestions: str
     proposed_files: list[ProposedFile]
     pr_title: str

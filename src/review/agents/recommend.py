@@ -4,7 +4,7 @@ from review.agents import read_prompt
 
 SCHEMA = {
     "title": "RecommendResult",
-    "description": "Suggestions and proposed README or CHANGELOG files.",
+    "description": "Suggestions, the pull request text, and the full new text of every file in the apply list.",
     "type": "object",
     "properties": {
         "suggestions": {"type": "string"},

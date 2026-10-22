@@ -3,10 +3,12 @@ import json
 import os
 import re
 import tarfile
+import tempfile
 import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 from langsmith import traceable
 
@@ -116,58 +118,16 @@ def _relative(path: str) -> str | None:
     return path
 
 
-def _root_tf(path: str) -> bool:
-    return "/" not in path and path.endswith(".tf")
-
-
-def _heading_section(text: str, title: str) -> str | None:
-    headings = list(re.finditer(r"^#{1,3} +(.+?)\s*$", text, re.M))
-    for index, heading in enumerate(headings):
-        if heading.group(1).strip().lower() != title.lower():
+def _write_tree(files: dict[str, str]) -> str:
+    root = Path(tempfile.mkdtemp(prefix="module-review-"))
+    for name, text in files.items():
+        safe = _relative(name)
+        if safe is None:
             continue
-        start = heading.end()
-        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
-        return text[start:end].strip()
-    return None
-
-
-def _changelog_top(text: str) -> str:
-    lines = text.splitlines()
-    headings = [index for index, line in enumerate(lines) if line.startswith("## ")]
-    if len(headings) >= 2:
-        lines = lines[: headings[1]]
-    else:
-        lines = lines[:40]
-    return "\n".join(lines).strip()
-
-
-def _interface(files: dict[str, str]) -> str:
-    root = [path for path in sorted(files) if _root_tf(path)]
-    terraform = ["none"] if not root else []
-    for path in root:
-        terraform.append(f"## {path}\n{files[path].rstrip()}")
-    readme = files.get("README.md", "")
-    inputs = _heading_section(readme, "Inputs")
-    output_section = _heading_section(readme, "Outputs")
-    if inputs is None and output_section is None:
-        clipped = readme if len(readme) <= 2000 else readme[:2000] + "\n...truncated"
-        inputs = clipped
-        output_section = clipped
-    changelog = _changelog_top(files.get("CHANGELOG.md", ""))
-    parts = [
-        "root terraform",
-        "\n\n".join(terraform),
-        "",
-        "readme inputs",
-        inputs or "none",
-        "",
-        "readme outputs",
-        output_section or "none",
-        "",
-        "changelog top",
-        changelog or "none",
-    ]
-    return "\n".join(parts)
+        dest = root / safe
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(text)
+    return str(root)
 
 
 def _listing(files: dict[str, str]) -> str:
@@ -190,8 +150,8 @@ def _search_files(files: dict[str, str], pattern: str) -> str:
     if not lines:
         return "no matches"
     text = "\n".join(lines)
-    if len(text) > 12000:
-        text = text[:12000] + "\n...truncated"
+    if len(text) > 48000:
+        text = text[:48000] + "\n...truncated"
     return text
 
 
@@ -224,6 +184,7 @@ class _Copy:
         self.files = files
         self.error = error
         self.status = status
+        self.dir = ""
 
 
 def _required(repo: str, ref: str) -> str:
@@ -247,19 +208,16 @@ class Reader:
     def copy_repo(self, ref: str) -> str:
         return ""
 
-    def unavailable(self, ref: str) -> str:
-        return ""
-
     def list_files(self, ref: str) -> str:
         return ""
 
     def read_file(self, path: str, ref: str) -> str:
         return ""
 
-    def interface(self, ref: str) -> str:
+    def search(self, pattern: str, ref: str) -> str:
         return ""
 
-    def search(self, pattern: str, ref: str) -> str:
+    def checkout(self, ref: str) -> str:
         return ""
 
     def list_release_tags(self) -> list[str]:
@@ -279,6 +237,8 @@ class FixtureReader(Reader):
         self._files = files or {}
         self._tags = list(tags or [])
         self._compares = compares or {}
+        self._dirs: dict[str, str] = {}
+        self._lock = threading.Lock()
 
     def _at(self, ref: str) -> dict[str, str]:
         return {path: text for (file_ref, path), text in self._files.items() if file_ref == ref}
@@ -292,11 +252,17 @@ class FixtureReader(Reader):
     def read_file(self, path: str, ref: str) -> str:
         return self._files.get((ref, path), f"not found: {path}@{ref}")
 
-    def interface(self, ref: str) -> str:
-        return _interface(self._at(ref))
-
     def search(self, pattern: str, ref: str) -> str:
         return _search_files(self._at(ref), pattern)
+
+    def checkout(self, ref: str) -> str:
+        with self._lock:
+            cached = self._dirs.get(ref)
+            if cached:
+                return cached
+            path = _write_tree(self._at(ref))
+            self._dirs[ref] = path
+            return path
 
     def list_release_tags(self) -> list[str]:
         return list(self._tags)
@@ -350,22 +316,8 @@ class GithubReader(Reader):
             return cached.error
         return _listing(cached.files)
 
-    def unavailable(self, ref: str) -> str:
-        self.copy_repo(ref)
-        cached = self._copies[ref]
-        if cached.status == 404:
-            return cached.error
-        return ""
-
     def list_files(self, ref: str) -> str:
         return self.copy_repo(ref)
-
-    def interface(self, ref: str) -> str:
-        message = self.copy_repo(ref)
-        cached = self._copies[ref]
-        if cached.error:
-            return message
-        return _interface(cached.files)
 
     def read_file(self, path: str, ref: str) -> str:
         message = self.copy_repo(ref)
@@ -383,6 +335,16 @@ class GithubReader(Reader):
         if cached.error:
             return message
         return _search_files(cached.files, pattern)
+
+    def checkout(self, ref: str) -> str:
+        message = self.copy_repo(ref)
+        with self._lock:
+            cached = self._copies[ref]
+            if cached.error:
+                return message
+            if not cached.dir:
+                cached.dir = _write_tree(cached.files)
+            return cached.dir
 
     def list_release_tags(self) -> list[str]:
         """One tags request. Keeps vX.Y.Z, X.Y.Z, and vX.Y.Z-suffix, newest first."""
@@ -439,6 +401,6 @@ class GithubReader(Reader):
             text = text + "\n\n" + "\n\n".join(patches)
         if payload.get("ahead_by", 0) == 0 and not patches:
             text = text + "\nno changes"
-        if len(text) > 12000:
-            text = text[:12000] + "\n...truncated"
+        if len(text) > 48000:
+            text = text[:48000] + "\n...truncated"
         return text

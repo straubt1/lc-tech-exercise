@@ -5,13 +5,14 @@ from statistics import median
 
 from dotenv import load_dotenv
 from langsmith import Client, evaluate
- 
+
 from review.graph import build_graph, load_model
 from review.reader import FixtureReader
 
 DATASET = "tf-module-review"
 _EXAMPLES = Path(__file__).resolve().parents[2] / "evals" / "tf-module-review.json"
-_AGENTS = ("review", "version", "recommend")
+_AGENTS = ("interface", "security", "release", "recommend")
+_FINDING_KEYS = ("interface_findings", "security_findings", "release_findings")
 
 
 def load_examples() -> list[dict]:
@@ -32,41 +33,32 @@ def fixture_from_inputs(inputs: dict) -> FixtureReader:
 
 def _filenames(outputs: dict) -> set[str]:
     names = set()
-    for key in ("review_findings", "version_findings"):
+    for key in _FINDING_KEYS:
         for item in outputs.get(key) or []:
             names.add(item["filename"])
     return names
 
 
-def _version_pairs(outputs: dict) -> set[tuple[str, bool]]:
-    return {
-        (item["version"], bool(item["published"]))
-        for item in outputs.get("versions") or []
-    }
+def _exact(key: str):
+    def evaluator(run, example) -> dict:
+        got = (run.outputs or {}).get(key)
+        want = (example.outputs or {}).get(key)
+        return {"key": key, "score": int(got == want)}
+
+    evaluator.__name__ = key
+    return evaluator
 
 
-def review_status(run, example) -> dict:
-    got = (run.outputs or {}).get("review_status")
-    want = (example.outputs or {}).get("review_status")
-    return {"key": "review_status", "score": int(got == want)}
-
-
-def suggested_version(run, example) -> dict:
-    got = (run.outputs or {}).get("suggested_version")
-    want = (example.outputs or {}).get("suggested_version")
-    return {"key": "suggested_version", "score": int(got == want)}
+interface_status = _exact("interface_status")
+security_status = _exact("security_status")
+release_status = _exact("release_status")
+suggested_version = _exact("suggested_version")
 
 
 def finding_files(run, example) -> dict:
     got = _filenames(run.outputs or {})
     want = set((example.outputs or {}).get("finding_files") or [])
     return {"key": "finding_files", "score": int(got == want)}
-
-
-def versions(run, example) -> dict:
-    got = _version_pairs(run.outputs or {})
-    want = _version_pairs(example.outputs or {})
-    return {"key": "versions", "score": int(got == want)}
 
 
 def target(inputs: dict) -> dict:
@@ -80,11 +72,13 @@ def target(inputs: dict) -> dict:
         {"configurable": {"thread_id": inputs.get("id", "eval")}},
     )
     return {
-        "review_status": result.get("review_status"),
+        "interface_status": result.get("interface_status"),
+        "security_status": result.get("security_status"),
+        "release_status": result.get("release_status"),
         "suggested_version": result.get("suggested_version"),
-        "review_findings": result.get("review_findings") or [],
-        "version_findings": result.get("version_findings") or [],
-        "versions": result.get("versions") or [],
+        "interface_findings": result.get("interface_findings") or [],
+        "security_findings": result.get("security_findings") or [],
+        "release_findings": result.get("release_findings") or [],
     }
 
 
@@ -139,7 +133,13 @@ def run_evaluation():
     results = evaluate(
         target,
         data=DATASET,
-        evaluators=[review_status, suggested_version, finding_files, versions],
+        evaluators=[
+            interface_status,
+            security_status,
+            release_status,
+            suggested_version,
+            finding_files,
+        ],
         experiment_prefix=DATASET,
         max_concurrency=1,
         client=client,

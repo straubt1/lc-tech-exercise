@@ -1,4 +1,5 @@
 import os
+import re
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
@@ -7,250 +8,433 @@ from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
+from review.agents.interface import build as build_interface
 from review.agents.recommend import build as build_recommend
-from review.agents.review import build as build_review
-from review.agents.version import apply_bump, release_brief
-from review.agents.version import build as build_version
+from review.agents.release import build as build_release
+from review.agents.security import build as build_security
 from review.reader import GithubReader, Reader
 from review.state import State
-from review.tools.github import (
-    build_recommend_tools,
-    build_tools,
-    build_version_tools,
-    open_pull_request,
+from review.tools.checks import (
+    build_interface_tools,
+    build_release_tools,
+    build_security_tools,
 )
+from review.tools.github import build_recommend_tools, open_pull_request
 
-
-def _user_message(text: str) -> dict:
-    return {"messages": [{"role": "user", "content": text}]}
-
-
+_VERSION = re.compile(r"^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$")
+_BUMPS = {"major", "minor", "patch", "none"}
+_SEVERITIES = ("UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL")
+_FILE_CAP = 10
+_TEMPLATES = [
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/pull_request_template.md",
+    "PULL_REQUEST_TEMPLATE.md",
+    "pull_request_template.md",
+    "docs/PULL_REQUEST_TEMPLATE.md",
+    "docs/pull_request_template.md",
+]
 _AGENT = {"recursion_limit": 80}
-
-
-def _kept(findings) -> list:
-    kept = []
-    for item in findings or []:
-        text = str(item.get("finding", "")).lower()
-        if "not a finding" in text or "not a mismatch" in text:
-            continue
-        kept.append(item)
-    return kept
-
-
-def _with_published(reported, tags: list[str]) -> list:
-    found = {}
-    order = []
-    for item in reported or []:
-        if not isinstance(item, dict):
-            continue
-        version = str(item.get("version") or "").strip()
-        if not version or version in found:
-            continue
-        found[version] = {
-            "version": version,
-            "published": bool(item.get("published")),
-            "source": str(item.get("source") or ""),
-        }
-        order.append(version)
-    for tag in tags:
-        current = found.get(tag)
-        if current is None:
-            found[tag] = {"version": tag, "published": True, "source": "tag"}
-            order.append(tag)
-            continue
-        current["published"] = True
-        parts = [part.strip() for part in current["source"].split(",") if part.strip()]
-        if "tag" not in parts:
-            parts.insert(0, "tag")
-        current["source"] = ", ".join(parts)
-    rest = [version for version in order if version not in set(tags)]
-    return [found[version] for version in [*tags, *rest]]
-
-
-def _review_message(repo: str, ref: str, tags: list[str]) -> str:
-    latest = tags[0] if tags else ""
-    lines = [
-        f"Review repo {repo} at ref {ref}.",
-        "Published versions:",
-        *tags,
-        f"Latest published version: {latest}" if latest else "Latest published version: none",
-        "The latest published version is the first entry. Return status and findings.",
-    ]
-    return "\n".join(lines)
-
-
-def _version_findings(findings) -> list:
-    kept = []
-    for item in _kept(findings):
-        if item.get("filename") != "CHANGELOG.md":
-            continue
-        if "unreleased" in str(item.get("finding", "")).lower():
-            continue
-        kept.append(item)
-    return kept
-
 
 # Default means the CLI and tests get an in-memory saver. None means no saver,
 # which is what LangGraph dev requires so it can attach its own.
 _DEFAULT_SAVER = object()
 
 
-def build_graph(model, reader: Reader, checkpointer=_DEFAULT_SAVER, open_pr=open_pull_request):
-    review_agent = build_review(model, build_tools(reader))
-    version_agent = build_version(model, build_version_tools(reader))
-    recommend_agent = build_recommend(model, build_recommend_tools(reader))
+def _user_message(text: str) -> dict:
+    return {"messages": [{"role": "user", "content": text}]}
 
-    def enrich(state: State) -> dict:
+
+def _no_changes(diff: str) -> bool:
+    if "compare not found" in diff:
+        return False
+    return any(line.strip() == "no changes" for line in diff.splitlines())
+
+
+def _version(text: str) -> str:
+    text = " ".join((text or "").split())
+    if not _VERSION.fullmatch(text):
+        return text
+    if text.startswith("v"):
+        return text
+    return "v" + text
+
+
+def _pull_version(state: State) -> str:
+    """Branch name uses the recommended version, or the current tag when there is no bump."""
+    version = str(state.get("suggested_version") or "").strip()
+    if version and version != "none":
+        return version
+    return str(state.get("current_version") or "").strip()
+
+
+def _released(status: str, findings: list, suggested: str, bump: str, current: str) -> dict:
+    if bump == "none":
+        suggested = "none"
+    return {
+        "release_status": status,
+        "release_findings": findings,
+        "current_version": current,
+        "suggested_version": suggested,
+        "bump": bump,
+    }
+
+
+def _bump(text: str) -> str:
+    text = (text or "").strip().lower()
+    if text in _BUMPS:
+        return text
+    return ""
+
+
+def _severity() -> str:
+    text = os.environ.get("TRIVY_SEVERITY", "HIGH").strip().upper()
+    if text in _SEVERITIES:
+        return text
+    return "HIGH"
+
+
+def _findings(body: dict) -> list:
+    findings = []
+    for item in body.get("findings") or []:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("finding") or "").strip()
+        if not text:
+            continue
+        filename = str(item.get("filename") or "").strip() or "module"
+        findings.append({"filename": filename, "finding": text})
+    return findings
+
+
+def _status(body: dict, good: str, bad: str) -> tuple[str, list]:
+    findings = _findings(body)
+    status = str(body.get("status") or bad)
+    if status not in {good, bad}:
+        status = bad
+    if findings:
+        status = bad
+    return status, findings
+
+
+def _invoke(agent, text: str):
+    try:
+        result = agent.invoke(_user_message(text), _AGENT)
+    except GraphRecursionError:
+        return None
+    return result.get("structured_response") or {}
+
+
+def _stopped(filename: str) -> tuple[str, list]:
+    return "fail", [
+        {
+            "filename": filename,
+            "finding": "Stopped early. The module is larger than this pass can read.",
+        }
+    ]
+
+
+def _apply_files(state: State) -> tuple[list[str], list[str]]:
+    """Files a finding names, interface then security then release. At most 10 are applied."""
+    ordered = []
+    for key in ("interface_findings", "security_findings", "release_findings"):
+        for item in state.get(key) or []:
+            name = str(item.get("filename") or "").strip()
+            finding = str(item.get("finding") or "").lower()
+            if not name or name in ordered:
+                continue
+            if "nothing new to release" in finding:
+                continue
+            ordered.append(name)
+    return ordered[:_FILE_CAP], ordered[_FILE_CAP:]
+
+
+def _with_security(body: str, findings: list) -> str:
+    """Keep security findings in the pull request body when the model leaves them out."""
+    text = (body or "").strip()
+    if not text:
+        return ""
+    missing = []
+    for item in findings or []:
+        finding = str(item.get("finding") or "").strip()
+        if not finding or finding in text:
+            continue
+        filename = str(item.get("filename") or "").strip() or "module"
+        missing.append(f"- {filename}: {finding}")
+    if not missing:
+        return text
+    return text + "\n\nSecurity\n" + "\n".join(missing)
+
+
+def _with_skipped(body: str, skipped: list[str]) -> str:
+    if not skipped:
+        return body
+    note = "More recommendations were not applied:\n" + "\n".join(f"- {name}" for name in skipped)
+    if body.strip():
+        return body.rstrip() + "\n\n" + note
+    return note
+
+
+def _findings_for(state: State, names: list[str]) -> dict[str, list[str]]:
+    grouped = {name: [] for name in names}
+    for key in ("interface_findings", "security_findings", "release_findings"):
+        for item in state.get(key) or []:
+            name = str(item.get("filename") or "").strip()
+            text = str(item.get("finding") or "").strip()
+            if name in grouped and text:
+                grouped[name].append(text)
+    return grouped
+
+
+def _kept_files(body: dict, names: list[str]) -> tuple[list, list[str]]:
+    """Proposed files that are in this list and have text. The rest are still missing."""
+    allowed = set(names)
+    files = []
+    seen = set()
+    for item in body.get("proposed_files") or []:
+        name = item.get("filename")
+        if name not in allowed or name in seen:
+            continue
+        if not str(item.get("content") or "").strip():
+            continue
+        files.append({"filename": name, "content": item["content"]})
+        seen.add(name)
+    return files, [name for name in names if name not in seen]
+
+
+def _recommend_text(state: State, chosen: list[str], skipped: list[str], missing: list[str] | None = None) -> str:
+    files = missing or chosen
+    grouped = _findings_for(state, files)
+    ref = state.get("ref") or ""
+    lines = [
+        f"Repo: {state.get('repo', '')}",
+        f"Ref: {ref}",
+        f"Interface: {state.get('interface_status', '')}",
+        f"Interface findings: {state.get('interface_findings', [])}",
+        f"Security: {state.get('security_status', '')}",
+        f"Security findings: {state.get('security_findings', [])}",
+        f"Release: {state.get('release_status', '')}",
+        f"Release findings: {state.get('release_findings', [])}",
+        f"Current version: {state.get('current_version', '')}",
+        f"Suggested version: {state.get('suggested_version', '')}",
+        f"Bump: {state.get('bump', '')}",
+    ]
+    if missing:
+        lines.append("These files were left out of proposed_files. Return each one now.")
+    lines.append("Apply changes to these files only. Read each one once. Return every one in proposed_files:")
+    for name in files:
+        lines.append(name)
+        lines.extend(f"- {text}" for text in grouped[name])
+    if missing:
+        return "\n".join(lines)
+    lines.extend(
+        [
+            "Do not read any other file.",
+            "Call read_pr_template once with these template paths, in this order:",
+            *_TEMPLATES,
+            "Skipped files:",
+            *(skipped or ["none"]),
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _status_text(state: State) -> str:
+    return "\n".join(
+        [
+            f"Interface: {state.get('interface_status', '')}",
+            f"Security: {state.get('security_status', '')}",
+            f"Release: {state.get('release_status', '')}",
+        ]
+    )
+
+
+def build_graph(model, reader: Reader, checkpointer=_DEFAULT_SAVER, open_pr=open_pull_request):
+    held: dict = {}
+    allowed: dict = {"files": set()}
+    interface_agent = build_interface(model, build_interface_tools(reader))
+    security_agent = build_security(model, build_security_tools(reader))
+    release_agent = build_release(model, build_release_tools(held))
+    recommend_agent = build_recommend(model, build_recommend_tools(reader, allowed))
+
+    def check(state: State) -> dict:
         message = reader.check(state.get("repo") or "", state.get("ref") or "")
         if message:
             return {"error": message}
+        return {}
+
+    def after_check(state: State):
+        if state.get("error"):
+            return END
+        return ["interface", "security", "release"]
+
+    def interface(state: State) -> dict:
+        repo = state.get("repo") or ""
+        ref = state.get("ref") or ""
+        body = _invoke(
+            interface_agent,
+            "\n".join(
+                [
+                    f"Review the interface of {repo} at ref {ref}.",
+                    f"Call terraform_docs once with ref {ref}.",
+                    "Return status and findings.",
+                ]
+            ),
+        )
+        if body is None:
+            status, findings = _stopped("README.md")
+        else:
+            status, findings = _status(body, "pass", "fail")
+        return {"interface_status": status, "interface_findings": findings}
+
+    def security(state: State) -> dict:
+        repo = state.get("repo") or ""
+        ref = state.get("ref") or ""
+        body = _invoke(
+            security_agent,
+            "\n".join(
+                [
+                    f"Review the security of {repo} at ref {ref}.",
+                    f"Call trivy_config once with ref {ref}.",
+                    f"The minimum severity is {_severity()}.",
+                    "Return status and findings.",
+                ]
+            ),
+        )
+        if body is None:
+            status, findings = _stopped("module")
+        else:
+            status, findings = _status(body, "pass", "fail")
+        return {"security_status": status, "security_findings": findings}
+
+    def release(state: State) -> dict:
+        ref = state.get("ref") or ""
         try:
             tags = list(reader.list_release_tags())
         except RuntimeError as exc:
-            return {"error": str(exc)}
-        return {"release_tags": tags}
-
-    def after_enrich(state: State):
-        if state.get("error"):
-            return END
-        return ["review", "version"]
-
-    def review(state: State) -> dict:
-        reader.copy_repo(state["ref"])
-        tags = list(state.get("release_tags") or [])
-        try:
-            result = review_agent.invoke(
-                _user_message(
-                    _review_message(state.get("repo") or "", state.get("ref") or "", tags)
-                ),
-                _AGENT,
+            return _released(
+                "not ready",
+                [{"filename": "CHANGELOG.md", "finding": str(exc)}],
+                "",
+                "",
+                "",
             )
-        except GraphRecursionError:
-            return {
-                "review_status": "fail",
-                "review_findings": [
+        latest = tags[0] if tags else ""
+        diff = reader.compare(latest, ref) if latest else ""
+        held["release_tags"] = tags
+        held["diff"] = diff
+        if latest and _no_changes(diff):
+            return _released(
+                "not ready",
+                [
                     {
-                        "filename": state.get("repo") or "review",
-                        "finding": (
-                            "Review stopped early. The module has more files "
-                            "than this pass can read."
-                        ),
+                        "filename": "CHANGELOG.md",
+                        "finding": f"Nothing new to release since {latest}.",
                     }
                 ],
-            }
-        body = result["structured_response"]
-        findings = _kept(body.get("findings"))
-        status = "fail" if findings else body.get("status", "fail")
-        return {
-            "review_status": status,
-            "review_findings": findings,
-        }
-
-    def version(state: State) -> dict:
-        tags = list(state.get("release_tags") or [])
-        latest = tags[0] if tags else ""
-        diff = reader.compare(latest, state["ref"]) if latest else ""
-        result = version_agent.invoke(
-            _user_message(
-                release_brief(state.get("repo") or "", state.get("ref") or "", tags, diff)
+                "none",
+                "none",
+                latest,
+            )
+        repo = state.get("repo") or ""
+        body = _invoke(
+            release_agent,
+            "\n".join(
+                [
+                    f"Decide if {repo} at ref {ref} is ready for a release.",
+                    "Call get_last_release_tag, then get_diff_since_last_release.",
+                    "When bump is none, suggested_version is none.",
+                    "Return status, suggested_version, bump, and findings.",
+                ]
             ),
-            _AGENT,
         )
-        body = result.get("structured_response") or {}
-        suggested, bump, justification = apply_bump(
-            body.get("bump") or "",
-            body.get("justification") or "",
-            latest,
-            diff,
-            suggested=body.get("suggested_version") or "",
-        )
-        return {
-            "suggested_version": suggested,
-            "bump": bump,
-            "justification": justification,
-            "versions": _with_published(body.get("versions"), tags),
-            "version_findings": _version_findings(body.get("findings")),
-        }
+        if body is None:
+            return _released(
+                "not ready",
+                [
+                    {
+                        "filename": "CHANGELOG.md",
+                        "finding": "Stopped early. The module is larger than this pass can read.",
+                    }
+                ],
+                "",
+                "",
+                latest,
+            )
+        status, findings = _status(body, "ready", "not ready")
+        bump = _bump(body.get("bump") or "")
+        return _released(status, findings, _version(body.get("suggested_version") or ""), bump, latest)
 
     def recommend(state: State) -> dict:
-        status = state.get("review_status", "")
-        if state.get("version_findings"):
-            status = "fail"
-        result = recommend_agent.invoke(
-            _user_message(
-                "\n".join(
-                    [
-                        f"Repo: {state.get('repo', '')}",
-                        f"Ref: {state.get('ref', '')}",
-                        f"Review status: {status}",
-                        f"Review findings: {state.get('review_findings', [])}",
-                        f"Suggested version: {state.get('suggested_version', '')}",
-                        f"Bump: {state.get('bump', '')}",
-                        f"Justification: {state.get('justification', '')}",
-                        f"Versions: {state.get('versions', [])}",
-                        f"Version findings: {state.get('version_findings', [])}",
-                    ]
-                )
-            ),
-            _AGENT,
-        )
-        body = result["structured_response"]
+        chosen, skipped = _apply_files(state)
+        allowed["files"] = set(chosen)
+        body = _invoke(recommend_agent, _recommend_text(state, chosen, skipped)) or {}
+        files, missing = _kept_files(body, chosen)
+        if missing:
+            allowed["files"] = set(missing)
+            again = _invoke(recommend_agent, _recommend_text(state, chosen, skipped, missing)) or {}
+            extra, _missing = _kept_files(again, missing)
+            files.extend(extra)
         return {
-            "review_status": status,
-            "suggestions": body["suggestions"],
-            "proposed_files": body["proposed_files"],
+            "suggestions": body.get("suggestions") or "",
+            "proposed_files": files,
             "pr_title": body.get("pr_title") or "",
             "pr_body": body.get("pr_body") or "",
         }
 
     def gate(state: State) -> dict:
-        suggestions = state.get("suggestions", "")
         answer = interrupt(
             {
                 "question": "Create a pull request with these suggestions? (yes/no)",
-                "suggestions": suggestions,
+                "suggestions": state.get("suggestions", ""),
             }
         )
         if str(answer).strip().lower() != "yes":
             return {"decision": "no"}
+        chosen, skipped = _apply_files(state)
+        allowed_files = set(chosen)
         files = [
             item
             for item in state.get("proposed_files") or []
-            if item.get("filename") in {"README.md", "CHANGELOG.md"}
+            if item.get("filename") in allowed_files
         ]
+        left_out = [name for name in chosen if name not in {item.get("filename") for item in files}]
+        skipped = [*skipped, *left_out]
         if not files:
             return {"decision": "yes"}
         findings = [
-            *(state.get("review_findings") or []),
-            *(state.get("version_findings") or []),
+            *(state.get("interface_findings") or []),
+            *(state.get("security_findings") or []),
+            *(state.get("release_findings") or []),
         ]
+        body = _with_security(state.get("pr_body") or "", state.get("security_findings") or [])
         url = open_pr(
             repo=state["repo"],
             base=state["ref"],
-            suggested_version=state.get("suggested_version", ""),
-            review_status=state.get("review_status", ""),
+            suggested_version=_pull_version(state),
+            status=_status_text(state),
             findings=findings,
             proposed_files=files,
             title=state.get("pr_title") or "",
-            body=state.get("pr_body") or "",
+            body=_with_skipped(body, skipped),
         )
         return {"decision": "yes", "pr_url": url}
 
     graph = StateGraph(State)
-    graph.add_node("enrich", enrich)
-    graph.add_node("review", review)
-    graph.add_node("version", version)
+    graph.add_node("check", check)
+    graph.add_node("interface", interface)
+    graph.add_node("security", security)
+    graph.add_node("release", release)
     graph.add_node("recommend", recommend)
     graph.add_node("gate", gate)
-    graph.add_edge(START, "enrich")
+    graph.add_edge(START, "check")
     graph.add_conditional_edges(
-        "enrich",
-        after_enrich,
-        ["review", "version", END],
+        "check",
+        after_check,
+        ["interface", "security", "release", END],
     )
-    graph.add_edge("review", "recommend")
-    graph.add_edge("version", "recommend")
+    graph.add_edge("interface", "recommend")
+    graph.add_edge("security", "recommend")
+    graph.add_edge("release", "recommend")
     graph.add_edge("recommend", "gate")
     graph.add_edge("gate", END)
     if checkpointer is _DEFAULT_SAVER:

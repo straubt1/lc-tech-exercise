@@ -2,9 +2,18 @@ import io
 import tarfile
 import threading
 import urllib.error
+from pathlib import Path
 
-from review.reader import GithubReader
-from review.tools.github import _run_suffix, open_pull_request, pull_request_title
+from langchain_core.messages import ToolMessage
+
+from review.reader import FixtureReader, GithubReader
+from review.tools.github import (
+    _run_suffix,
+    build_listing_tools,
+    build_recommend_tools,
+    open_pull_request,
+    pull_request_title,
+)
 
 
 def _http_error(code):
@@ -52,7 +61,7 @@ def _archive(files: dict[str, str]) -> bytes:
     return buffer.getvalue()
 
 
-def test_copy_repo_downloads_once_and_search_finds_blocks_in_any_filename():
+def test_copy_repo_downloads_once_and_checkout_writes_that_copy():
     calls = []
     blob = _archive(
         {
@@ -75,53 +84,11 @@ def test_copy_repo_downloads_once_and_search_finds_blocks_in_any_filename():
     assert reader.read_file("missing.tf", "latest") == "not found: missing.tf@latest"
     assert reader.copy_repo("latest") == listing
     assert calls == ["https://api.github.com/repos/acme/mod/tarball/latest"]
-    found = reader.search(r'(variable|output)\s+"', "latest")
-    assert 'locals.tf:1: variable "bucket_name" {}' in found
-    assert 'notes.md:1: output "bucket_arn" {}' in found
-    assert "hidden" not in found
-
-
-def test_interface_returns_the_contract_without_the_rest_of_the_files():
-    blob = _archive(
-        {
-            "variables.tf": (
-                'variable "force_destroy" {\n'
-                '  description = "Destroy the bucket."\n'
-                "  type        = bool\n"
-                "  default     = false\n"
-                "}\n\n"
-                'resource "aws_s3_bucket" "this" {\n'
-                '  bucket = "not-part-of-the-interface-BODY"\n'
-                "}\n"
-            ),
-            "outputs.tf": (
-                'output "bucket_id" {\n'
-                '  description = "ID of the bucket."\n'
-                "  value = aws_s3_bucket.this.id\n"
-                "}\n"
-            ),
-            "examples/demo.tf": 'variable "hidden" {}\n',
-            "modules/bucket/main.tf": 'variable "nested" {}\n',
-            "README.md": (
-                "# Mod\n\n## Inputs\n\n| bucket_name |\n\n"
-                "## Outputs\n\n| bucket_id |\n\n"
-                "## Resources\n\nwhole readme body\n"
-            ),
-            "CHANGELOG.md": (
-                "# Changelog\n\n## v1.0.1\n\n- Top.\n\n"
-                "## v1.0.0\n\n- Old body that is not the top section.\n"
-            ),
-        }
-    )
-    text = GithubReader("acme/mod", download=lambda url: blob).interface("latest")
-    assert 'variable "force_destroy"' in text
-    assert "type        = bool" in text
-    assert "not-part-of-the-interface-BODY" in text
-    assert 'output "bucket_id"' in text
-    assert "hidden" not in text
-    assert "nested" not in text
-    assert "whole readme body" not in text
-    assert "Old body" not in text
+    path = reader.checkout("latest")
+    assert Path(path, "locals.tf").read_text() == 'variable "bucket_name" {}\n'
+    assert Path(path, "examples/demo.tf").is_file()
+    assert reader.checkout("latest") == path
+    assert calls == ["https://api.github.com/repos/acme/mod/tarball/latest"]
 
 
 def test_copy_repo_downloads_once_when_two_callers_race():
@@ -228,13 +195,17 @@ def test_check_reports_a_missing_ref_without_downloading_the_repo():
     assert reader.check("acme/mod", "") == "ref is required"
 
 
-def test_a_missing_ref_is_unavailable():
+def test_a_missing_ref_is_reported_without_a_second_download():
+    calls = []
+
     def download(url):
+        calls.append(url)
         raise _http_error(404)
 
     reader = GithubReader("acme/mod", download=download)
-    assert reader.unavailable("missing") == "not found: acme/mod@missing"
     assert reader.read_file("README.md", "missing") == "not found: acme/mod@missing"
+    assert reader.checkout("missing") == "not found: acme/mod@missing"
+    assert len(calls) == 1
 
 
 def test_read_file_reports_a_rate_limit():
@@ -247,7 +218,6 @@ def test_read_file_reports_a_rate_limit():
     reader = GithubReader("acme/mod", download=download)
     text = reader.read_file("README.md", "latest")
     assert text.startswith("github error 403")
-    assert reader.unavailable("latest") == ""
     assert reader.list_files("latest") == text
     assert len(calls) == 1
 
@@ -325,7 +295,7 @@ def test_a_blank_title_becomes_a_title_and_a_blank_body_lists_findings(monkeypat
         repo="acme/mod",
         base="latest",
         suggested_version="v1.2.0",
-        review_status="fail",
+        status="Interface: fail",
         findings=[{"filename": "README.md", "finding": "missing variable"}],
         proposed_files=[{"filename": "README.md", "content": "# Readme\n"}],
         request=request,
@@ -334,7 +304,8 @@ def test_a_blank_title_becomes_a_title_and_a_blank_body_lists_findings(monkeypat
     assert request.pull["title"] == "[Review Agent] Update the Readme for v1.2.0"
     assert request.commit["author"]["name"] == "Review Agent"
     assert request.commit["committer"] == request.commit["author"]
-    assert "Review status: fail" in request.pull["body"]
+    assert "Interface: fail" in request.pull["body"]
+    assert "Suggested version: v1.2.0" in request.pull["body"]
     assert "README.md: missing variable" in request.pull["body"]
 
 
@@ -370,7 +341,7 @@ def test_open_pull_request_commits_docs_and_uses_the_token_from_the_environment(
         repo="acme/mod",
         base="latest",
         suggested_version="v1.2.0",
-        review_status="fail",
+        status="Interface: fail",
         findings=[{"filename": "README.md", "finding": "missing variable"}],
         proposed_files=[
             {"filename": "README.md", "content": "# Readme\n"},
@@ -395,13 +366,13 @@ def test_open_pull_request_commits_docs_and_uses_the_token_from_the_environment(
         for method, url, _token, payload in calls
         if method == "POST" and url.endswith("/git/blobs")
     ]
-    assert blobs == ["# Readme\n", "# Changelog\n"]
+    assert blobs == ["# Readme\n", "# Changelog\n", "nope\n"]
     tree = next(
         payload
         for method, url, _token, payload in calls
         if method == "POST" and url.endswith("/git/trees")
     )
-    assert [item["path"] for item in tree["tree"]] == ["README.md", "CHANGELOG.md"]
+    assert [item["path"] for item in tree["tree"]] == ["README.md", "CHANGELOG.md", "main.tf"]
     commit = next(
         payload
         for method, url, _token, payload in calls
@@ -418,3 +389,80 @@ def test_open_pull_request_commits_docs_and_uses_the_token_from_the_environment(
     assert pull["body"] == "## Summary\nThe readme omits a variable."
     assert pull["head"] == "review/v1.2.0-a1b2c3"
     assert pull["base"] == "latest"
+
+
+def test_read_pr_template_returns_the_first_existing_file_and_read_file_stays_on_the_list():
+    reader = FixtureReader(
+        files={
+            ("latest", "docs/PULL_REQUEST_TEMPLATE.md"): "# Template\n",
+            ("latest", "main.tf"): "resource {}\n",
+        }
+    )
+    allowed = {"files": {"main.tf"}}
+    tools = {tool.name: tool for tool in build_recommend_tools(reader, allowed)}
+    text = tools["read_pr_template"].invoke(
+        {
+            "paths": [".github/PULL_REQUEST_TEMPLATE.md", "docs/PULL_REQUEST_TEMPLATE.md"],
+            "ref": "latest",
+        }
+    )
+    assert text.startswith("docs/PULL_REQUEST_TEMPLATE.md")
+    assert "# Template" in text
+    assert tools["read_pr_template"].invoke({"paths": ["missing.md"], "ref": "latest"}) == ""
+    assert tools["read_file"].invoke({"path": "main.tf", "ref": "latest"}) == "resource {}\n"
+    assert tools["read_file"].invoke({"path": "README.md", "ref": "latest"}) == "not in this run"
+
+
+def _tool_call(tool, args):
+    return tool.invoke({"type": "tool_call", "id": "call-1", "name": tool.name, "args": args})
+
+
+def test_list_tools_return_arrays_and_keep_errors():
+    reader = FixtureReader(
+        files={
+            ("latest", "README.md"): "hello\n",
+            ("latest", "main.tf"): 'variable "name" {}\n',
+            ("latest", "examples/demo.tf"): 'variable "hidden" {}\n',
+        },
+        tags=["v1.2.0", "v1.0.0"],
+    )
+    tools = {tool.name: tool for tool in build_listing_tools(reader)}
+    assert reader.list_files("latest") == "README.md\nexamples/demo.tf\nmain.tf"
+
+    listed = _tool_call(tools["list_files"], {"ref": "latest"})
+    assert isinstance(listed, ToolMessage)
+    assert listed.content == ["README.md", "examples/demo.tf", "main.tf"]
+
+    found = _tool_call(tools["search"], {"pattern": "variable", "ref": "latest"})
+    assert found.content == ['main.tf:1: variable "name" {}']
+    assert _tool_call(tools["search"], {"pattern": "missing", "ref": "latest"}).content == []
+    invalid = _tool_call(tools["search"], {"pattern": "(", "ref": "latest"})
+    assert isinstance(invalid.content, str)
+    assert invalid.content.startswith("invalid pattern:")
+
+    tags = _tool_call(tools["list_release_tags"], {})
+    assert tags.content == ["v1.2.0", "v1.0.0"]
+
+    empty = {tool.name: tool for tool in build_listing_tools(FixtureReader())}
+    assert _tool_call(empty["list_files"], {"ref": "latest"}).content == []
+    assert _tool_call(empty["search"], {"pattern": "variable", "ref": "latest"}).content == []
+    assert _tool_call(empty["list_release_tags"], {}).content == []
+
+    def fail(url):
+        raise _http_error(404)
+
+    broken_reader = GithubReader("acme/mod", download=fail, fetch=fail)
+    broken = {tool.name: tool for tool in build_listing_tools(broken_reader)}
+    missing = _tool_call(broken["list_files"], {"ref": "missing"})
+    assert missing.content == "not found: acme/mod@missing"
+    assert _tool_call(broken["search"], {"pattern": "variable", "ref": "missing"}).content == missing.content
+    denied = _tool_call(broken["list_release_tags"], {})
+    assert isinstance(denied.content, str)
+    assert denied.content.startswith("github error 404")
+
+    huge = FixtureReader(files={("latest", "main.tf"): "y" * 48001 + "\n"})
+    clipped = _tool_call(
+        {tool.name: tool for tool in build_listing_tools(huge)}["search"],
+        {"pattern": "y", "ref": "latest"},
+    )
+    assert clipped.content[-1] == "...truncated"

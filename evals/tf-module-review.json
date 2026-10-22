@@ -19,10 +19,11 @@
         }
       },
       "outputs": {
-        "review_status": "pass",
-        "suggested_version": "v1.0.0",
-        "finding_files": [],
-        "versions": [{"version": "v1.0.0", "published": true}]
+        "interface_status": "pass",
+        "security_status": "pass",
+        "release_status": "not ready",
+        "suggested_version": "none",
+        "finding_files": ["CHANGELOG.md"]
       }
     },
     {
@@ -44,10 +45,11 @@
         }
       },
       "outputs": {
-        "review_status": "fail",
+        "interface_status": "fail",
+        "security_status": "pass",
+        "release_status": "not ready",
         "suggested_version": "v1.1.0",
-        "finding_files": ["README.md"],
-        "versions": [{"version": "v1.0.0", "published": true}]
+        "finding_files": ["README.md", "CHANGELOG.md"]
       }
     },
     {
@@ -69,13 +71,11 @@
         }
       },
       "outputs": {
-        "review_status": "pass",
+        "interface_status": "pass",
+        "security_status": "pass",
+        "release_status": "ready",
         "suggested_version": "v2.0.0",
-        "finding_files": [],
-        "versions": [
-          {"version": "v1.0.0", "published": true},
-          {"version": "v2.0.0", "published": false}
-        ]
+        "finding_files": []
       }
     },
     {
@@ -97,13 +97,11 @@
         }
       },
       "outputs": {
-        "review_status": "fail",
+        "interface_status": "fail",
+        "security_status": "pass",
+        "release_status": "ready",
         "suggested_version": "v2.0.0",
-        "finding_files": ["README.md"],
-        "versions": [
-          {"version": "v1.0.0", "published": true},
-          {"version": "v2.0.0", "published": false}
-        ]
+        "finding_files": ["README.md"]
       }
     },
     {
@@ -126,10 +124,11 @@
         }
       },
       "outputs": {
-        "review_status": "fail",
+        "interface_status": "pass",
+        "security_status": "pass",
+        "release_status": "not ready",
         "suggested_version": "v1.0.1",
-        "finding_files": ["CHANGELOG.md"],
-        "versions": [{"version": "v1.0.0", "published": true}]
+        "finding_files": ["CHANGELOG.md"]
       }
     },
     {
@@ -149,10 +148,11 @@
         "compares": {}
       },
       "outputs": {
-        "review_status": "pass",
+        "interface_status": "pass",
+        "security_status": "pass",
+        "release_status": "not ready",
         "suggested_version": "v1.0.0",
-        "finding_files": [],
-        "versions": []
+        "finding_files": ["CHANGELOG.md"]
       }
     },
     {
@@ -172,10 +172,11 @@
         "compares": {}
       },
       "outputs": {
-        "review_status": "pass",
+        "interface_status": "pass",
+        "security_status": "pass",
+        "release_status": "ready",
         "suggested_version": "v1.2.0",
-        "finding_files": [],
-        "versions": [{"version": "v1.2.0", "published": false}]
+        "finding_files": []
       }
     }
   ]

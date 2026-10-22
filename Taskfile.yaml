@@ -1,0 +1,49 @@
+version: "3"
+
+vars:
+  IMAGE: module-review
+
+tasks:
+  build:
+    desc: Build the local review image
+    cmds:
+      - docker build -t {{.IMAGE}} .
+
+  run:
+    desc: Review with .env. Set GITHUB_REPO, GITHUB_CANDIDATE_REF, or TRIVY_SEVERITY to override.
+    interactive: true
+    cmds:
+      - |
+        docker run --rm -it \
+          --env-file .env \
+          {{if .GITHUB_REPO}}-e GITHUB_REPO="{{.GITHUB_REPO}}"{{end}} \
+          {{if .GITHUB_CANDIDATE_REF}}-e GITHUB_CANDIDATE_REF="{{.GITHUB_CANDIDATE_REF}}"{{end}} \
+          {{if .TRIVY_SEVERITY}}-e TRIVY_SEVERITY="{{.TRIVY_SEVERITY}}"{{end}} \
+          {{.IMAGE}}
+
+  object-storage:
+    desc: Review straubt1/terraform-aws-object-storage at latest
+    interactive: true
+    cmds:
+      - task: run
+        vars:
+          GITHUB_REPO: straubt1/terraform-aws-object-storage
+          GITHUB_CANDIDATE_REF: latest
+
+  variable:
+    desc: Review straubt1/terraform-aws-object-storage at latest-variable
+    interactive: true
+    cmds:
+      - task: run
+        vars:
+          GITHUB_REPO: straubt1/terraform-aws-object-storage
+          GITHUB_CANDIDATE_REF: latest-variable
+
+  project-factory:
+    desc: Review terraform-google-modules/terraform-google-project-factory at main
+    interactive: true
+    cmds:
+      - task: run
+        vars:
+          GITHUB_REPO: terraform-google-modules/terraform-google-project-factory
+          GITHUB_CANDIDATE_REF: main

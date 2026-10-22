@@ -43,10 +43,10 @@ def main() -> None:
     # Which git ref to review. Candidate code is the latest branch, not main.
     ref = os.environ.get("GITHUB_CANDIDATE_REF", "latest")
 
-    # One reader. Review copies the ref, and the prompt reads those files again for the diff.
+    # One reader. The checks read the module. Release loads the tag and the diff.
     reader = GithubReader(repo)
 
-    # Build the graph: enrich, review and version in parallel, recommend, then the gate.
+    # Build the graph: check the ref, three checks in parallel, recommend, then the gate.
     app = build_graph(load_model(model_name), reader)
 
     # thread_id names the checkpoint. The same id is required to resume after the question.
@@ -58,8 +58,8 @@ def main() -> None:
     # Print the repo and ref once, before any agent starts.
     show_header(console, repo, ref)
 
-    # Stream the graph. steps prints a line as review and version finish.
-    # The spinner starts as "review and version", then "recommend" once both are done.
+    # Stream the graph. steps prints a line as each check finishes.
+    # The spinner names the checks still running, then recommend.
     # pr_url starts empty. The gate fills it only after a yes.
     follow(
         app,
