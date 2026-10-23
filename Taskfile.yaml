@@ -83,3 +83,47 @@ tasks:
     desc: Export the reveal.js deck in present/ to a PDF
     cmds:
       - ./present/export-pdf.sh {{.CLI_ARGS}}
+
+  present:
+    desc: Serve the slide deck at http://langchain-presentation.arcbox.local/
+    cmds:
+      - docker build -t langchain-presentation present
+      - docker rm -f langchain-presentation >/dev/null 2>&1 || true
+      - docker run -d --name langchain-presentation --mount type=bind,src={{.ROOT_DIR}}/present,dst=/site langchain-presentation
+
+  docx:
+    desc: Convert the LangSmith design document to Word and open it
+    summary: |
+      markdown-to-docx is a home-grown utility. Other people are unlikely to have it installed.
+    vars:
+      INPUT: 'part1/[InnovateCorp] LangSmith Self-Hosted Design Document.md'
+      OUT: '{{.OUTPUT | default (printf "%s.docx" (.INPUT | trimSuffix ".md"))}}'
+      OPEN: '{{.OPEN | default "true"}}'
+    cmds:
+      - markdown-to-docx convert
+          --input "{{.ROOT_DIR}}/{{.INPUT}}"
+          --output "{{.ROOT_DIR}}/{{.OUT}}"
+          --verbose
+      - cmd: open "{{.ROOT_DIR}}/{{.OUT}}"
+        if: '[ "{{.OPEN}}" = "true" ]'
+
+  docx:convert:
+    desc: Build the Word document, then replace the PDF beside it
+    vars:
+      INPUT: 'part1/[InnovateCorp] LangSmith Self-Hosted Design Document.md'
+      DOCX: '{{.OUTPUT | default (printf "%s.docx" (.INPUT | trimSuffix ".md"))}}'
+    cmds:
+      - task: docx
+        vars:
+          INPUT: '{{.INPUT}}'
+          OUTPUT: '{{.DOCX}}'
+          OPEN: "false"
+      - |
+        soffice="/Applications/LibreOffice.app/Contents/MacOS/soffice"
+        docx="{{.ROOT_DIR}}/{{.DOCX}}"
+        outdir="$(dirname "$docx")"
+        base="$(basename "$docx" .docx)"
+        tmp="$(mktemp -d)"
+        "$soffice" --headless --convert-to pdf --outdir "$tmp" "$docx"
+        mv -f "$tmp/$base.pdf" "$outdir/$base.pdf"
+        rmdir "$tmp"

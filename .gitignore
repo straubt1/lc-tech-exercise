@@ -221,3 +221,5 @@ __marimo__/
 .DS_Store
 terraform-aws-object-storage/
 .langgraph_api/
+.~lock.*
+part1/\[InnovateCorp] LangSmith Self-Hosted Design Document.docx
