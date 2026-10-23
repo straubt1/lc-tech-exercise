@@ -20,9 +20,9 @@ fi
 uv --version
 
 echo "==> install-check: syncing Python dependencies with uv"
-cd /workspace
+cd /workspace/part2
 uv sync --frozen
-uv run python -m release.terraform_module_releaser --help >/dev/null
+uv run python -c "import review; from review.evals import _EXAMPLES; assert _EXAMPLES.is_file(), _EXAMPLES"
 
 MODULE_DIR="/workspace/terraform-aws-object-storage"
 if [[ ! -d "${MODULE_DIR}/.git" ]]; then

@@ -27,10 +27,10 @@ The same flow is drawn in [plans/diagrams/module-review.excalidraw](diagrams/mod
 
 ## Locked choices
 
-- Python package `review`. Run it with `uv run python -m review`.
+- Python package `review`, in `part2/`. Run it with `uv run --directory part2 python -m review`.
 - LangChain `create_agent` for the three agents. LangGraph `StateGraph` for the outer flow. `init_chat_model` reads `MODEL` (`provider:model`).
 - Graph state is a `TypedDict`. Agent outputs use a plain JSON schema dict passed as `response_format`. We do not define Pydantic models.
-- Prompts are files in `src/review/prompts/`.
+- Prompts are files in `part2/src/review/prompts/`.
 - GitHub reads go through one reader used by the tools. The live reader calls the public HTTPS API. Tests and evals pass a fixture reader with the same three methods, so the agents do not care where the bytes came from.
 - `GH_TOKEN` is read from the environment inside the reader and inside the pull-request function. It is not a tool argument, not in a prompt, and not on graph state. Reads omit the header when the variable is unset.
 - LangSmith tracing is on when `LANGSMITH_TRACING=true` and both `LANGSMITH_API_KEY` and `LANGSMITH_PROJECT` are set. Endpoint stays `https://api.smith.langchain.com`. The dataset name is `tf-module-review`.
@@ -107,7 +107,7 @@ The next node prints `suggestions` and interrupts with: create a pull request wi
 Add the package and a graph that runs from start through the human gate.
 
 ```
-src/review/
+part2/src/review/
   __init__.py
   __main__.py
   graph.py
@@ -120,18 +120,18 @@ src/review/
   prompts/review.md
   prompts/version.md
   prompts/recommend.md
-tests/test_graph.py
+part2/tests/test_graph.py
 ```
 
 - `reader.py` defines the three reads the tools will use: `read_file(path, ref)`, `list_release_tags()`, `compare(base, head)`. No HTTP yet. The graph is constructed with a reader.
 - Each agent module exposes `build(model, tools)` and returns `create_agent(...)` with a `name` (`review`, `version`, `recommend`), the prompt file, and that agent's JSON schema.
 - `graph.py` fans out from `START` to `review` and `version`, then both edges go to `recommend`, then to `gate`. Checkpointer is `InMemorySaver`. `gate` calls `interrupt` and stores `yes` or `no`.
 - `__main__.py` loads `.env`, requires `MODEL`, invokes the graph, prints the interrupt payload, and resumes with stdin.
-- Point `langgraph.json` at `src/review/graph.py:graph`. Update `.env.example` and the `pyproject.toml` description. Drop the direct `pydantic` dependency. Set `LANGSMITH_PROJECT` to `terraform-module-review`.
-- `tests/test_graph.py` builds the graph with a fake chat model and a fixture reader. It asserts both branches finish, the gate interrupts, `no` ends with `decision=no`, and `yes` ends with `decision=yes` without a pull request.
+- Point `part2/langgraph.json` at `src/review/graph.py:graph`. Update `part2/.env.example` and the `part2/pyproject.toml` description. Drop the direct `pydantic` dependency. Set `LANGSMITH_PROJECT` to `terraform-module-review`.
+- `part2/tests/test_graph.py` builds the graph with a fake chat model and a fixture reader. It asserts both branches finish, the gate interrupts, `no` ends with `decision=no`, and `yes` ends with `decision=yes` without a pull request.
 - Draw the high-level flow in `plans/diagrams/module-review.excalidraw` and export `plans/diagrams/module-review.png` beside it. The picture shows start, review and version in parallel, recommend, the yes/no gate, the pull request, and exit.
 
-Done when `uv run pytest tests/test_graph.py` passes, `uv run python -m review` reaches the yes/no prompt, and the diagram matches this flow.
+Done when `uv run --directory part2 pytest tests/test_graph.py` passes, `uv run --directory part2 python -m review` reaches the yes/no prompt, and the diagram matches this flow.
 
 ## Step 2 — Review agent and version agent
 
@@ -141,7 +141,7 @@ Fill in the three prompt files with the rules in [Agents](#agents). Review and v
 
 After each agent returns, copy `structured_response` onto the graph state. If review findings is non-empty, set status to `fail`.
 
-Extend `tests/test_graph.py` with a fixture reader and the fake model, covering one passing module and one module whose README omits a variable. Assert status, finding filename, suggested version, and the `versions` list. One fixture has a published tag. One has a changelog heading with no matching tag, returned as unpublished with source `CHANGELOG.md`.
+Extend `part2/tests/test_graph.py` with a fixture reader and the fake model, covering one passing module and one module whose README omits a variable. Assert status, finding filename, suggested version, and the `versions` list. One fixture has a published tag. One has a changelog heading with no matching tag, returned as unpublished with source `CHANGELOG.md`.
 
 Done when a live run against `straubt1/terraform-aws-object-storage` at `latest` prints a review status, a `vX.Y.Z`, every found version with published or unpublished, and any findings, and the fake-model tests pass.
 
@@ -157,7 +157,7 @@ Done when a live run prints the report, accepts `yes` or `no`, and a `yes` with 
 
 ## Step 4 — LangSmith evaluations and performance metrics
 
-Add `evals/tf-module-review.json`. Each example is a fixture reader payload (files at the last tag and at `latest`, plus tags) and the expected `review_status`, `suggested_version`, finding filenames, and `versions` (`version` plus `published`).
+Add `part2/evals/tf-module-review.json`. Each example is a fixture reader payload (files at the last tag and at `latest`, plus tags) and the expected `review_status`, `suggested_version`, finding filenames, and `versions` (`version` plus `published`).
 
 Cover at least:
 
@@ -169,15 +169,15 @@ Cover at least:
 - No `vX.Y.Z` tags yet: suggested `v1.0.0` when the changelog has no version.
 - Changelog heading `1.2.0` and no tag: `versions` includes `v1.2.0` with `published` false.
 
-`src/review/evals.py` runs `langsmith.evaluation.evaluate` on the graph with the fixture reader. Four evaluators, all plain functions, score 1 or 0:
+`part2/src/review/evals.py` runs `langsmith.evaluation.evaluate` on the graph with the fixture reader. Four evaluators, all plain functions, score 1 or 0:
 
 - `review_status` — exact match.
 - `suggested_version` — exact match.
 - `finding_files` — the set of filenames matches. Extra or missing files score 0.
 - `versions` — the set of `version` and `published` pairs matches.
 
-An example passes only when all four scores are 1. `tests/test_evals.py` calls `evaluate` and fails the pytest run otherwise. The same test prints median latency and token counts from the experiment, grouped by agent name (`review`, `version`, `recommend`). Those run stats are the performance metrics.
+An example passes only when all four scores are 1. `part2/tests/test_evals.py` calls `evaluate` and fails the pytest run otherwise. The same test prints median latency and token counts from the experiment, grouped by agent name (`review`, `version`, `recommend`). Those run stats are the performance metrics.
 
 Also unit-test the four evaluators with hand-written outputs so a scoring mistake fails without a network call.
 
-Done when `uv run pytest` passes, the `tf-module-review` experiment is in LangSmith, and the traces show both parallel agents, the tool calls, and the human gate.
+Done when `uv run --directory part2 pytest` passes, the `tf-module-review` experiment is in LangSmith, and the traces show both parallel agents, the tool calls, and the human gate.

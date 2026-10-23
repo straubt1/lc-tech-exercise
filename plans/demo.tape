@@ -14,7 +14,7 @@ Set TypingSpeed 25ms
 Set WaitTimeout 30s
 
 
-Type "GITHUB_CANDIDATE_REF=latest-variable uv run python -m review"
+Type "GITHUB_CANDIDATE_REF=latest-variable uv run --directory part2 python -m review"
 Enter
 
 

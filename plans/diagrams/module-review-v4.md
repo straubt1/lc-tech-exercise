@@ -49,7 +49,7 @@ Compares generated Terraform docs with `README.md`. The tool does not change fil
 
 | | |
 | --- | --- |
-| Prompt | `src/review/prompts/interface.md` |
+| Prompt | `part2/src/review/prompts/interface.md` |
 | Tools | `terraform_docs(ref)` |
 | Required inputs | `repo`, `ref` |
 | Returns | `status` (`pass` or `fail`), `findings` |
@@ -68,7 +68,7 @@ Runs Trivy on the module and keeps findings at or above a severity the model cho
 
 | | |
 | --- | --- |
-| Prompt | `src/review/prompts/security.md` |
+| Prompt | `part2/src/review/prompts/security.md` |
 | Tools | `trivy_config(ref)` |
 | Required inputs | `repo`, `ref` |
 | Returns | `status` (`pass` or `fail`), `findings` |
@@ -87,7 +87,7 @@ Decides whether `CHANGELOG.md` is ready and recommends the next version. The nod
 
 | | |
 | --- | --- |
-| Prompt | `src/review/prompts/release.md` |
+| Prompt | `part2/src/review/prompts/release.md` |
 | Tools | `get_last_release_tag()`, `get_diff_since_last_release()` |
 | Required inputs | `repo`, `ref` |
 | Returns | `status` (`ready` or `not ready`), `suggested_version`, `bump` (`major`, `minor`, `patch`, or `none`), `findings` |
@@ -108,7 +108,7 @@ Turns the three reports into file edits and pull request text. It runs only afte
 
 | | |
 | --- | --- |
-| Prompt | `src/review/prompts/recommend.md` |
+| Prompt | `part2/src/review/prompts/recommend.md` |
 | Tools | `read_pr_template(paths, ref)`, `read_file(path, ref)` |
 | Required inputs | `repo`, `ref`, and the six status and findings keys, `suggested_version`, `bump` |
 | Returns | `suggestions`, `pr_title`, `pr_body`, `proposed_files` |

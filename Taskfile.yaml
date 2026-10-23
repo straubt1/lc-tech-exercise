@@ -6,11 +6,13 @@ vars:
 tasks:
   build:
     desc: Build the local review image
+    dir: part2
     cmds:
       - docker build -t {{.IMAGE}} .
 
   run:
     desc: Review with .env. Set GITHUB_REPO, GITHUB_CANDIDATE_REF, or TRIVY_SEVERITY to override.
+    dir: part2
     interactive: true
     cmds:
       - |
@@ -46,36 +48,43 @@ tasks:
 
   test:
     desc: Run the unit tests, skipping the live LangSmith experiment
+    dir: part2
     cmds:
       - uv run pytest -q -k "not langsmith"
 
   test:tools:
     desc: Run the tool tests
+    dir: part2
     cmds:
       - uv run pytest -q tests/test_checks.py tests/test_reader.py
 
   test:agents:
     desc: Run the agent tests
+    dir: part2
     cmds:
       - uv run pytest -q tests/test_agents.py
 
   test:normalize:
     desc: Run the normalize tests
+    dir: part2
     cmds:
       - uv run pytest -q tests/test_normalize.py
 
   test:nodes:
     desc: Run the node tests
+    dir: part2
     cmds:
       - uv run pytest -q tests/test_nodes.py
 
   test:graph:
     desc: Run the graph tests
+    dir: part2
     cmds:
       - uv run pytest -q tests/test_graph.py
 
   test:display:
     desc: Run the display tests
+    dir: part2
     cmds:
       - uv run pytest -q tests/test_display.py
 

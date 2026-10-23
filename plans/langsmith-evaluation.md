@@ -6,7 +6,7 @@ How this repo answers the Part 2 request in [Take-Home Assignment.md](Take-Home%
 
 The agent under test is the module reviewer in [part2-module-review.md](part2-module-review.md) and [diagrams/module-review-v4.md](diagrams/module-review-v4.md). The domain decision is whether a Terraform module is ready to publish: interface docs match, security findings at or above the severity bar are reported, the changelog names the right next version, and the findings point at the right files.
 
-Code lives in `src/review/evals.py`, `evals/tf-module-review.json`, and `tests/test_evals.py`.
+Code lives in `part2/src/review/evals.py`, `part2/evals/tf-module-review.json`, and `part2/tests/test_evals.py`.
 
 ## LangSmith objects
 
@@ -15,16 +15,16 @@ LangSmith stores three things. The graph stays in this repo.
 | Object | What it is | Where it lives |
 | --- | --- | --- |
 | Tracing project | One tree per live run of `python -m review` | `LANGSMITH_PROJECT=terraform-module-review` |
-| Dataset | Inputs plus the answers we expect | Dataset name `tf-module-review`, sourced from `evals/tf-module-review.json` |
+| Dataset | Inputs plus the answers we expect | Dataset name `tf-module-review`, sourced from `part2/evals/tf-module-review.json` |
 | Experiment | One full pass of the dataset, with a score on every row | Created by `evaluate()`. Each pass is its own project, named `tf-module-review-…` |
 
 A live review and an evaluation do not land in the same project. Live runs go to `terraform-module-review`. `evaluate()` creates a new experiment project each time. `print_performance` reads that experiment, not the tracing project. Opening only the tracing project shows demos and hides the scores.
 
-LangChain and LangGraph emit traces when the three variables below are set. The graph is not wrapped. The only hand-written span is `@traceable` on the live GitHub compare in `src/review/reader.py`, and it exists to redact `GH_TOKEN` before headers are stored. Fixture evals do not hit that path.
+LangChain and LangGraph emit traces when the three variables below are set. The graph is not wrapped. The only hand-written span is `@traceable` on the live GitHub compare in `part2/src/review/reader.py`, and it exists to redact `GH_TOKEN` before headers are stored. Fixture evals do not hit that path.
 
 ## Setup
 
-In `.env` (names match `.env.example`):
+In `part2/.env` (names match `part2/.env.example`):
 
 ```bash
 LANGSMITH_TRACING=true
@@ -38,9 +38,9 @@ MODEL=openai:gpt-4.1-mini
 
 ## What already runs
 
-`run_evaluation` in `src/review/evals.py`:
+`run_evaluation` in `part2/src/review/evals.py`:
 
-1. Loads `evals/tf-module-review.json`.
+1. Loads `part2/evals/tf-module-review.json`.
 2. Upserts the LangSmith dataset `tf-module-review`. Existing examples are deleted and recreated from the file, so the cloud dataset cannot drift from git. Old experiments stay.
 3. Calls `langsmith.evaluate` with the target and five evaluators. `experiment_prefix` is `tf-module-review`. `max_concurrency` is 1.
 4. Prints median latency and median token count for `interface`, `security`, `release`, and `recommend`.
@@ -50,7 +50,7 @@ The target builds the real graph with the real model and a `FixtureReader`, then
 Run it with:
 
 ```bash
-uv run pytest tests/test_evals.py::test_langsmith_experiment -s
+uv run --directory part2 pytest tests/test_evals.py::test_langsmith_experiment -s
 ```
 
 `test_status_fields_are_exact` and `test_finding_files_matches_the_set` score hand-written outputs and never call LangSmith. Those exist so a broken scorer fails in milliseconds. `test_langsmith_experiment` spends the model calls. It fails the pytest run unless every evaluator on every row returns 1.
@@ -61,9 +61,9 @@ That strict bar is a product choice. A non-deterministic model will occasionally
 
 Score the publish decision, not the prose. The reference outputs are:
 
-- `interface_status` — `pass` or `fail`. Pass when the generated Terraform docs and `README.md` describe the same variables and outputs (`src/review/prompts/interface.md`).
-- `security_status` — `pass` or `fail`. Pass when nothing at or above the named minimum severity remains. The user message names the minimum. `.env` sets `TRIVY_SEVERITY=HIGH` (`src/review/prompts/security.md`).
-- `release_status` — `ready` or `not ready`. Ready when the top changelog heading is a real version that matches the diff. `## Unreleased` is not ready (`src/review/prompts/release.md`).
+- `interface_status` — `pass` or `fail`. Pass when the generated Terraform docs and `README.md` describe the same variables and outputs (`part2/src/review/prompts/interface.md`).
+- `security_status` — `pass` or `fail`. Pass when nothing at or above the named minimum severity remains. The user message names the minimum. `part2/.env` sets `TRIVY_SEVERITY=HIGH` (`part2/src/review/prompts/security.md`).
+- `release_status` — `ready` or `not ready`. Ready when the top changelog heading is a real version that matches the diff. `## Unreleased` is not ready (`part2/src/review/prompts/release.md`).
 - `suggested_version` — `vX.Y.Z`. Major for a break, minor for a new optional variable or output, patch for anything else. `v1.0.0` when there is no tag and the changelog has no version.
 - `finding_files` — the set of filenames across `interface_findings`, `security_findings`, and `release_findings`.
 
@@ -75,7 +75,7 @@ Each example is one frozen module. Inputs are what the reader needs: `repo`, `re
 
 `compares` keys are `base...head`. `files` are nested by ref, then path.
 
-The seven rows in `evals/tf-module-review.json`:
+The seven rows in `part2/evals/tf-module-review.json`:
 
 | id | What it forces the agent to notice | Expected |
 | --- | --- | --- |
@@ -95,7 +95,7 @@ The seven rows in `evals/tf-module-review.json`:
 
 ### Adding a row
 
-1. Append an object under `examples` in `evals/tf-module-review.json` with `inputs.id`, `inputs.files`, `inputs.tags`, `inputs.compares`, and `outputs`.
+1. Append an object under `examples` in `part2/evals/tf-module-review.json` with `inputs.id`, `inputs.files`, `inputs.tags`, `inputs.compares`, and `outputs`.
 2. Re-run `test_langsmith_experiment`. `sync_dataset` replaces the cloud examples.
 3. Open the new row in the experiment. If the model followed the prompt and the JSON expected the other status, fix the JSON. If the tool output is right and the structured response is wrong, fix the prompt.
 
@@ -113,7 +113,7 @@ Already implemented, all score 0 or 1:
 | `suggested_version` | Exact match |
 | `finding_files` | Set equality of filenames. Order does not matter. An extra or missing file scores 0. |
 
-`_exact` and `finding_files` are plain functions in `src/review/evals.py`. They are passed in the `evaluators` list to `evaluate`.
+`_exact` and `finding_files` are plain functions in `part2/src/review/evals.py`. They are passed in the `evaluators` list to `evaluate`.
 
 ### Next metrics
 
@@ -166,7 +166,7 @@ module_review
 └── gate   (interrupt, waiting for yes/no)
 ```
 
-`check` has no model. On `docs-match`, release also has no model: `release()` in `src/review/graph.py` sees `no changes` in the compare payload and returns the current tag. A missing chat span there is that short-circuit.
+`check` has no model. On `docs-match`, release also has no model: `release()` in `part2/src/review/graph.py` sees `no changes` in the compare payload and returns the current tag. A missing chat span there is that short-circuit.
 
 When a score is 0, read in this order:
 
@@ -175,15 +175,15 @@ When a score is 0, read in this order:
 3. The graph's write to state. `_status` forces `fail` or `not ready` whenever the findings list is non-empty, and it rewrites a bad status string. A model can return `pass` with a finding and the state will still be `fail`. Check which layer the dataset meant to grade.
 4. Recommend's second invoke. If files were dropped, the node calls the agent again. Two chat spans under recommend usually mean the first draft omitted an apply-list file.
 
-The same tree appears for `uv run python -m review`, in the tracing project. Live runs use `GithubReader`, so `github_compare` is there with the token redacted. The gate stays open until yes or no. After the answer, the resumed run continues in the same thread.
+The same tree appears for `uv run --directory part2 python -m review`, in the tracing project. Live runs use `GithubReader`, so `github_compare` is there with the token redacted. The gate stays open until yes or no. After the answer, the resumed run continues in the same thread.
 
 ## Using a failure to change the agent
 
 Change one cause, then run the experiment again.
 
-**The reference is wrong.** The trace shows the model followed the prompt, and the JSON expected the other status. Edit `evals/tf-module-review.json`. The next `sync_dataset` replaces the cloud examples. Do this when the rubric changed.
+**The reference is wrong.** The trace shows the model followed the prompt, and the JSON expected the other status. Edit `part2/evals/tf-module-review.json`. The next `sync_dataset` replaces the cloud examples. Do this when the rubric changed.
 
-**The prompt is wrong.** The tool output is right and the structured response is wrong. Edit one file under `src/review/prompts/`. Open the comparison between the two experiments. LangSmith lines the rows up by example. The previously failing row should flip to 1, and the previously passing rows should stay 1. A prompt that fixes `output-renamed` and breaks `docs-match` shows up on one screen.
+**The prompt is wrong.** The tool output is right and the structured response is wrong. Edit one file under `part2/src/review/prompts/`. Open the comparison between the two experiments. LangSmith lines the rows up by example. The previously failing row should flip to 1, and the previously passing rows should stay 1. A prompt that fixes `output-renamed` and breaks `docs-match` shows up on one screen.
 
 **The graph rewrote a good answer.** The structured response matches the dataset and the state does not. Look at `_status`, `_version`, and the "nothing new to release" short-circuit before editing the prompt.
 
