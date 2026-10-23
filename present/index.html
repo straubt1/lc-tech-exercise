@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InnovateCorp — LangSmith</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <style>
+    :root {
+      --bg: #f2faff;
+      --ink: #030710;
+      --muted: rgba(3, 7, 16, 0.62);
+      --blue: #7fc8ff;
+      --blue-deep: #006ddd;
+      --line: #dae1e6;
+      --card: #ffffff;
+      --dark: #030710;
+      --on-dark: #ffffff;
+      --on-dark-muted: rgba(255, 255, 255, 0.68);
+      --font: "Instrument Sans", Tahoma, sans-serif;
+    }
+
+    .reveal {
+      font-family: var(--font);
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    .reveal .slides {
+      text-align: left;
+    }
+
+    .reveal .slides section {
+      box-sizing: border-box;
+      height: 100%;
+      padding: 52px 72px 48px;
+      font-weight: 400;
+      line-height: 1.4;
+    }
+
+    .reveal .slides section.present {
+      display: flex !important;
+      flex-direction: column;
+    }
+
+    .reveal h1,
+    .reveal h2,
+    .reveal h3,
+    .reveal p,
+    .reveal li {
+      font-family: inherit;
+      text-transform: none;
+      text-shadow: none;
+    }
+
+    .reveal h1,
+    .reveal h2,
+    .reveal h3 {
+      margin: 0;
+      font-weight: 400;
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      color: var(--ink);
+    }
+
+    .reveal p {
+      margin: 0;
+    }
+
+    .reveal .progress {
+      height: 3px;
+      color: var(--blue-deep);
+      background: transparent;
+    }
+
+    .logo {
+      display: block;
+      width: 156px;
+      height: auto;
+    }
+
+    .slide-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 0;
+    }
+
+    .kicker {
+      margin: 0 0 14px;
+      color: var(--blue-deep);
+      font-size: 16px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+    }
+
+    .lede {
+      max-width: 720px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 22px;
+      line-height: 1.45;
+    }
+
+    .accent {
+      color: var(--blue-deep);
+    }
+
+    /* Cover and close */
+    .cover,
+    .thanks {
+      justify-content: space-between;
+    }
+
+    .cover .logo,
+    .thanks .logo {
+      width: 188px;
+    }
+
+    .cover h1,
+    .thanks h1 {
+      max-width: 920px;
+      font-size: 72px;
+    }
+
+    .cover .lede,
+    .thanks .lede {
+      font-size: 24px;
+    }
+
+    .meta {
+      display: flex;
+      gap: 28px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .meta span + span::before {
+      content: "";
+      display: inline-block;
+      width: 4px;
+      height: 4px;
+      margin-right: 28px;
+      border-radius: 50%;
+      background: var(--blue);
+      vertical-align: middle;
+      transform: translateY(-1px);
+    }
+
+    .arcs {
+      position: absolute;
+      right: -120px;
+      bottom: -160px;
+      width: 640px;
+      height: 640px;
+      pointer-events: none;
+    }
+
+    /* Section breaks */
+    .section-slide {
+      color: var(--on-dark);
+    }
+
+    .section-slide h2 {
+      max-width: 900px;
+      color: var(--on-dark);
+      font-size: 68px;
+    }
+
+    .section-slide .lede {
+      color: var(--on-dark-muted);
+    }
+
+    .index {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin: 0 0 22px;
+      color: var(--blue);
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+    }
+
+    .index::after {
+      content: "";
+      width: 42px;
+      height: 1px;
+      background: var(--blue);
+    }
+
+    /* Content */
+    .content h2 {
+      max-width: 900px;
+      margin-bottom: 28px;
+      font-size: 44px;
+    }
+
+    .points {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .points li {
+      position: relative;
+      margin: 0 0 16px;
+      padding-left: 22px;
+      font-size: 26px;
+      line-height: 1.35;
+    }
+
+    .points li:last-child {
+      margin-bottom: 0;
+    }
+
+    .points li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+    }
+
+    .split h3,
+    .card h3 {
+      margin-bottom: 10px;
+      font-size: 24px;
+      font-weight: 500;
+      letter-spacing: -0.025em;
+    }
+
+    .split p,
+    .card p {
+      color: var(--muted);
+      font-size: 20px;
+      line-height: 1.45;
+    }
+
+    .split > div + div {
+      padding-left: 48px;
+      border-left: 1px solid var(--line);
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .card {
+      padding: 24px 24px 28px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+
+    .statement {
+      max-width: 980px;
+      font-size: 44px;
+      line-height: 1.22;
+      letter-spacing: -0.03em;
+    }
+
+    .byline {
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- COVER. Speaker notes live in aside.notes. Press S to open the speaker view. -->
+      <section class="slide cover" data-background-color="#f2faff">
+        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="kicker">InnovateCorp</p>
+          <h1>LangSmith, ready to run</h1>
+          <p class="lede">The platform it sits on, the agents it runs, and what that is worth.</p>
+        </div>
+        <div class="meta">
+          <span>Presenter name</span>
+          <span>40 minutes</span>
+        </div>
+        <svg class="arcs" viewBox="0 0 560 560" fill="none" aria-hidden="true">
+          <path d="M48 520C210 520 340 390 340 228" stroke="#7fc8ff" stroke-width="1.25" stroke-dasharray="1.5 7"/>
+          <path d="M48 520C250 520 392 378 392 176" stroke="#7fc8ff" stroke-width="1.25"/>
+          <path d="M48 520C292 520 448 364 448 120" stroke="#006ddd" stroke-width="1.25" opacity="0.55"/>
+          <path d="M48 520C334 520 504 350 504 64" stroke="#7fc8ff" stroke-width="1.25" stroke-dasharray="1.5 6"/>
+          <circle cx="48" cy="520" r="3.5" fill="#006ddd"/>
+        </svg>
+        <aside class="notes">
+          Open with who you are and the two outcomes: a platform they can run, and agents they can trust. Both parts get time. Spend more where you are strongest.
+        </aside>
+      </section>
+
+      <section class="slide content" data-background-color="#f2faff">
+        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="kicker">Today</p>
+          <h2>Three parts</h2>
+          <ul class="points">
+            <li>Where LangSmith runs, and how it scales.</li>
+            <li>The agents, the human checkpoint, and the results.</li>
+            <li>What that is worth, and what we would change.</li>
+          </ul>
+        </div>
+        <aside class="notes">
+          Set the room. Technical listeners get the design. Business listeners get the outcome. Say you will come back to questions at the end.
+        </aside>
+      </section>
+
+      <section class="slide section-slide" data-background-color="#030710">
+        <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="index">01</p>
+          <h2>Platform</h2>
+          <p class="lede">Self-hosted LangSmith, on the Kubernetes you already have.</p>
+        </div>
+        <aside class="notes">
+          Frame this as a conceptual design. Name the cloud and region when you have them. No infrastructure code on these slides.
+        </aside>
+      </section>
+
+      <section class="slide content" data-background-color="#f2faff">
+        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="kicker">Platform</p>
+          <h2>What has to be there</h2>
+          <ul class="points">
+            <li>The services in a self-hosted LangSmith install.</li>
+            <li>Where each one sits in the cluster.</li>
+            <li>The resources each one needs.</li>
+          </ul>
+        </div>
+        <aside class="notes">
+          This is the diagram slide. Walk components, then placement, then size. Pull the service list from the self-hosted docs and replace these three lines with your map.
+        </aside>
+      </section>
+
+      <section class="slide content" data-background-color="#f2faff">
+        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="kicker">Platform</p>
+          <h2>Storage, and how it grows</h2>
+          <div class="split">
+            <div>
+              <h3>What moves out</h3>
+              <p>The stores to externalize so production can scale on its own.</p>
+            </div>
+            <div>
+              <h3>What scales</h3>
+              <p>Which pieces grow with load, and the limits this design accepts.</p>
+            </div>
+          </div>
+        </div>
+        <aside class="notes">
+          Left: name each storage service and say whether it stays in-cluster or moves out. Right: how the platform scales, and the constraint you designed around.
+        </aside>
+      </section>
+
+      <section class="slide section-slide" data-background-color="#030710">
+        <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="index">02</p>
+          <h2>Agents</h2>
+          <p class="lede">A multi-agent workflow, with a person at the decision.</p>
+        </div>
+        <aside class="notes">
+          Name the domain in the first sentence. One concrete example of the work this replaces, then move to the shape of the system.
+        </aside>
+      </section>
+
+      <section class="slide content" data-background-color="#f2faff">
+        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="kicker">Agents</p>
+          <h2>The work, in stages</h2>
+          <ul class="points">
+            <li>The problem, in one line.</li>
+            <li>One agent per stage, on LangGraph.</li>
+            <li>A person reviews before the step that matters.</li>
+          </ul>
+        </div>
+        <aside class="notes">
+          Replace the first line with the domain and the job to be done. Then the stages, the outside systems they call, and exactly where the human steps in.
+        </aside>
+      </section>
+
+      <section class="slide content" data-background-color="#f2faff">
+        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="kicker">Agents</p>
+          <h2>The choice, and the cost</h2>
+          <div class="split">
+            <div>
+              <h3>What we chose</h3>
+              <p>How the agents split the work, and why a person stays in the loop.</p>
+            </div>
+            <div>
+              <h3>What that costs</h3>
+              <p>The speed, control, or effort you gave up to get that design.</p>
+            </div>
+          </div>
+        </div>
+        <aside class="notes">
+          One design choice, then the trade-off in plain language. A second pair is enough if you have time.
+        </aside>
+      </section>
+
+      <section class="slide section-slide" data-background-color="#030710">
+        <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="index">03</p>
+          <h2>Proof</h2>
+          <p class="lede">Whether it works, and whether it matters.</p>
+        </div>
+        <aside class="notes">
+          Bridge from the build to the evidence. If you show the demo, start it after this slide and land on the numbers next.
+        </aside>
+      </section>
+
+      <section class="slide content" data-background-color="#f2faff">
+        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="kicker">Proof</p>
+          <h2>What the evals showed</h2>
+          <ul class="points">
+            <li>The cases the dataset has to cover.</li>
+            <li>The metrics that matter for this work.</li>
+            <li>What the LangSmith runs came back with.</li>
+          </ul>
+        </div>
+        <aside class="notes">
+          Dataset shape, then your custom metrics, then the result. Mention traces only to show you can see why a run passed or failed.
+        </aside>
+      </section>
+
+      <section class="slide content" data-background-color="#f2faff">
+        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="kicker">Proof</p>
+          <h2>What the business feels</h2>
+          <div class="cards">
+            <article class="card">
+              <h3>The number</h3>
+              <p>The KPI this workflow is meant to move.</p>
+            </article>
+            <article class="card">
+              <h3>The link</h3>
+              <p>How the eval result shows up in that KPI.</p>
+            </article>
+            <article class="card">
+              <h3>After launch</h3>
+              <p>What you would watch once it is in use.</p>
+            </article>
+          </div>
+        </div>
+        <aside class="notes">
+          Translate one technical finding into one business number. Skip extra metrics. Say what “good” looks like after go-live.
+        </aside>
+      </section>
+
+      <section class="slide section-slide" data-background-color="#030710">
+        <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="index">04</p>
+          <h2>Friction</h2>
+          <p class="lede">Where the tools slowed the work, and what would fix it.</p>
+        </div>
+        <aside class="notes">
+          This is the product feedback. Be specific and brief. One friction per tool is enough.
+        </aside>
+      </section>
+
+      <section class="slide content" data-background-color="#f2faff">
+        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="kicker">Friction</p>
+          <h2>What we would tell the product team</h2>
+          <ul class="points">
+            <li>Where LangChain, LangGraph, or LangSmith got in the way.</li>
+            <li>The missing piece that would have saved time.</li>
+            <li>The one change you would ask for first.</li>
+          </ul>
+        </div>
+        <aside class="notes">
+          Name the tool, the moment it hurt, and the fix. Keep it to three. This is a log, not a complaint.
+        </aside>
+      </section>
+
+      <!-- THANK YOU. -->
+      <section class="slide thanks" data-background-color="#f2faff">
+        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+        <div class="slide-main">
+          <p class="kicker">InnovateCorp</p>
+          <h1>Thank you</h1>
+          <p class="lede">Questions on the platform, the agents, or the results.</p>
+        </div>
+        <div class="meta">
+          <span>Presenter name</span>
+          <span>name@example.com</span>
+        </div>
+        <svg class="arcs" viewBox="0 0 560 560" fill="none" aria-hidden="true">
+          <path d="M48 520C210 520 340 390 340 228" stroke="#7fc8ff" stroke-width="1.25" stroke-dasharray="1.5 7"/>
+          <path d="M48 520C250 520 392 378 392 176" stroke="#7fc8ff" stroke-width="1.25"/>
+          <path d="M48 520C292 520 448 364 448 120" stroke="#006ddd" stroke-width="1.25" opacity="0.55"/>
+          <path d="M48 520C334 520 504 350 504 64" stroke="#7fc8ff" stroke-width="1.25" stroke-dasharray="1.5 6"/>
+          <circle cx="48" cy="520" r="3.5" fill="#006ddd"/>
+        </svg>
+        <aside class="notes">
+          Stop. Take questions in the order of the agenda: platform, agents, then value.
+        </aside>
+      </section>
+
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      width: 1280,
+      height: 720,
+      margin: 0,
+      center: false,
+      controls: false,
+      progress: true,
+      slideNumber: false,
+      transition: "fade",
+      backgroundTransition: "fade",
+      plugins: [ RevealNotes ]
+    });
+  </script>
+</body>
+</html>

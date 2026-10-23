@@ -78,3 +78,8 @@ tasks:
     desc: Run the display tests
     cmds:
       - uv run pytest -q tests/test_display.py
+
+  slides:pdf:
+    desc: Export the reveal.js deck in present/ to a PDF
+    cmds:
+      - ./present/export-pdf.sh {{.CLI_ARGS}}
