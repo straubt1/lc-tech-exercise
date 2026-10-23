@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>InnovateCorp — LangSmith</title>
+  <title>InnovateCorp |  LangSmith Self-hosted</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -42,7 +42,12 @@
       line-height: 1.4;
     }
 
-    .reveal .slides section.present {
+    /* A vertical stack is a parent section. Padding and flex belong on the slides inside it. */
+    .reveal .slides > section:has(> section) {
+      padding: 0;
+    }
+
+    .reveal .slides section.present:not(:has(> section)) {
       display: flex !important;
       flex-direction: column;
     }
@@ -120,6 +125,12 @@
     .cover .logo,
     .thanks .logo {
       width: 188px;
+    }
+
+    .cover .kicker {
+      margin-bottom: 18px;
+      font-size: 40px;
+      letter-spacing: -0.02em;
     }
 
     .cover h1,
@@ -256,6 +267,30 @@
       border-left: 1px solid var(--line);
     }
 
+    .split .points li {
+      font-size: 22px;
+      line-height: 1.4;
+    }
+
+    .split p + .points {
+      margin-top: 18px;
+    }
+
+    .pill {
+      display: inline-block;
+      margin: 0 8px;
+      padding: 1px 8px 2px;
+      border-radius: 999px;
+      background: #d9edff;
+      color: var(--blue-deep);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      line-height: 1.5;
+      vertical-align: 2px;
+      white-space: nowrap;
+    }
+
     .cards {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -281,6 +316,74 @@
       color: var(--muted);
       font-size: 18px;
     }
+
+    .questions {
+      text-align: center;
+    }
+
+    .questions .slide-main {
+      align-items: center;
+    }
+
+    .questions h2 {
+      margin: 0;
+      color: var(--ink);
+      font-size: 64px;
+    }
+
+    /* Dark aside after a dense slide. One offer, larger type. */
+    .bonus .kicker {
+      margin-bottom: 22px;
+      color: var(--blue);
+      font-size: 22px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .bonus h2 {
+      max-width: 980px;
+      color: var(--on-dark);
+      font-size: 58px;
+      line-height: 1.12;
+    }
+
+    /* Portrait architecture diagram under a short heading. */
+    .diagram-slide .slide-main {
+      justify-content: flex-start;
+    }
+
+    .reveal .slides section.diagram-slide {
+      padding: 28px 40px 24px;
+    }
+
+    .diagram-slide .logo {
+      width: 120px;
+    }
+
+    .reveal .slides section.diagram-slide h2 {
+      margin-bottom: 8px;
+      font-size: 32px;
+    }
+
+    .diagram {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+    }
+
+    .diagram img {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
   </style>
 </head>
 <body>
@@ -292,12 +395,13 @@
         <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
         <div class="slide-main">
           <p class="kicker">InnovateCorp</p>
-          <h1>LangSmith, ready to run</h1>
-          <p class="lede">The platform it sits on, the agents it runs, and what that is worth.</p>
+          <h1>LangSmith Self-hosted</h1>
+          <p class="lede">Deployment, Adoption, and Scale.</p>
         </div>
         <div class="meta">
           <span>Tom Straub</span>
-          <span>40 minutes</span>
+          <span>Architect</span>
+          <span>Tuesday, October 27th, 2026</span>
         </div>
         <svg class="arcs" viewBox="0 0 560 560" fill="none" aria-hidden="true">
           <path d="M48 520C210 520 340 390 340 228" stroke="#7fc8ff" stroke-width="1.25" stroke-dasharray="1.5 7"/>
@@ -307,7 +411,7 @@
           <circle cx="48" cy="520" r="3.5" fill="#006ddd"/>
         </svg>
         <aside class="notes">
-          Open with who you are and the two outcomes: a platform they can run, and agents they can trust. Both parts get time. Spend more where you are strongest.
+          Introduction, some of us have met, if not, here is me in 10 seconds
         </aside>
       </section>
 
@@ -315,194 +419,305 @@
         <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
         <div class="slide-main">
           <p class="kicker">Today</p>
-          <h2>Three parts</h2>
+          <h2>Agenda</h2>
           <ul class="points">
-            <li>Where LangSmith runs, and how it scales.</li>
-            <li>The agents, the human checkpoint, and the results.</li>
-            <li>What that is worth, and what we would change.</li>
+            <li>LangSmith Platform Architecture</li>
+            <li>Terraform Module Review Agent Development</li>
+            <li>Friction Log</li>
+            <li>Q &amp; A</li>
           </ul>
         </div>
         <aside class="notes">
-          Set the room. Technical listeners get the design. Business listeners get the outcome. Say you will come back to questions at the end.
+          Level set on agenda, quick pause
         </aside>
       </section>
 
-      <section class="slide section-slide" data-background-color="#030710">
-        <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
-        <div class="slide-main">
-          <p class="index">01</p>
-          <h2>Platform</h2>
-          <p class="lede">Self-hosted LangSmith, on the Kubernetes you already have.</p>
-        </div>
-        <aside class="notes">
-          Frame this as a conceptual design. Name the cloud and region when you have them. No infrastructure code on these slides.
-        </aside>
-      </section>
+      <!-- 01 Platform. Down moves through this stack. -->
+      <section>
+        <section class="slide section-slide" data-background-color="#030710">
+          <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="index"></p>
+            <h2>Platform Architecture</h2>
+            <p class="lede">Self-hosted LangSmith on a dedicated GKE cluster.</p>
+          </div>
+          <aside class="notes">
+            Conceptual design for technical review. No infrastructure code. The picture is plans/diagrams/langsmith-deployment.png. Walk it on the component slide.
+          </aside>
+        </section>
 
-      <section class="slide content" data-background-color="#f2faff">
-        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
-        <div class="slide-main">
-          <p class="kicker">Platform</p>
-          <h2>What has to be there</h2>
-          <ul class="points">
-            <li>The services in a self-hosted LangSmith install.</li>
-            <li>Where each one sits in the cluster.</li>
-            <li>The resources each one needs.</li>
-          </ul>
-        </div>
-        <aside class="notes">
-          This is the diagram slide. Walk components, then placement, then size. Pull the service list from the self-hosted docs and replace these three lines with your map.
-        </aside>
-      </section>
+        <section class="slide content" data-background-color="#f2faff">
+          <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="kicker">Platform</p>
+            <h2>What we designed around</h2>
+            <ul class="points">
+              <li>A dedicated GKE Standard cluster.</li>
+              <li>Agents stay where they are and send traces to LangSmith.</li>
+              <li>Durable data sits in managed services, outside the cluster.</li>
+              <li>A standard install now. Hosted agents come later.</li>
+            </ul>
+          </div>
+          <aside class="notes">
+            Staff sign in with OIDC. Agents use API keys. The API key salt is set once and is not rotated. Observability, evaluation, prompts, and Chat are in. Insights stays off, because that path still expects ClickHouse. LangSmith Deployment, KEDA, and agent servers are a later phase and are not sized here.
+          </aside>
+        </section>
 
-      <section class="slide content" data-background-color="#f2faff">
-        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
-        <div class="slide-main">
-          <p class="kicker">Platform</p>
-          <h2>Storage, and how it grows</h2>
-          <div class="split">
-            <div>
-              <h3>What moves out</h3>
-              <p>The stores to externalize so production can scale on its own.</p>
-            </div>
-            <div>
-              <h3>What scales</h3>
-              <p>Which pieces grow with load, and the limits this design accepts.</p>
+        <section class="slide content diagram-slide" data-background-color="#f2faff">
+          <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+          <div class="slide-main">
+            <h2>Architecture</h2>
+            <figure class="diagram">
+              <img src="assets/langsmith-deployment.png" alt="LangSmith in us-west2. GKE Standard holds Envoy, a general node pool, and SmithDB cache and compute pools. Beside the cluster: two Cloud SQL PostgreSQL instances, Memorystore, a SmithDB GCS bucket, and a blob GCS bucket.">
+            </figure>
+          </div>
+          <aside class="notes">
+            General pool runs the interface, the APIs, ingest, the playground, the eval runtime, and Chat. SmithDB cache nodes use local SSD. That disk is a cache and is rebuilt from the SmithDB GCS bucket. It is not the durable copy. Point at the diagram while you say this. In the cluster: Envoy is the only door, stateless services share the general pool, and SmithDB has its own cache and compute pools. Beside the cluster: two Cloud SQL instances and Memorystore on private addresses, plus two GCS buckets. SmithDB requires its own single-region bucket in us-west2 for traces and feedback. The blob bucket is multi-region. Pods use Workload Identity. Nodes reach Cloud Storage through Private Google Access.
+          </aside>
+        </section>
+
+        <section class="slide content" data-background-color="#f2faff">
+          <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="kicker">Platform</p>
+            <h2>Infrastructure</h2>
+            <div class="split">
+              <div>
+                <h3>Application</h3>
+                <p>A dedicated GKE Standard cluster.</p>
+                <ul class="points">
+                  <li>General node pool</li>
+                  <li><span class="pill">SmithDB</span> Cache node pool</li>
+                  <li><span class="pill">SmithDB</span> Compute node pool</li>
+                </ul>
+              </div>
+              <div>
+                <h3>Storage</h3>
+                <ul class="points">
+                  <li>Cloud SQL - Users, projects, datasets, experiments, and Chat.</li>
+                  <li>Blob GCS bucket - Payloads and attachments.</li>
+                  <li>Redis - Ingest queue, cache, and Chat.</li>
+                  <li><span class="pill">SmithDB</span> Cloud SQL - Metastore, empty and separate.</li>
+                  <li><span class="pill">SmithDB</span> GCS bucket - Traces and feedback.</li>
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
-        <aside class="notes">
-          Left: name each storage service and say whether it stays in-cluster or moves out. Right: how the platform scales, and the constraint you designed around.
-        </aside>
-      </section>
+          <aside class="notes">
+            Three node pools. General runs the interface, the APIs, ingest, the playground, the eval runtime, and Chat. The SmithDB cache pool accepts writes and serves reads. Its local SSD is a cache. The SmithDB compute pool runs compaction and coordination. Both Cloud SQL instances are PostgreSQL 18 with regional high availability. The platform database also holds organizations and API keys. SmithDB requires an empty metastore on its own instance, because that catalog records where trace data was written. Memorystore is Standard high availability and also holds Chat's queue. SmithDB requires a GCS bucket. It is single-region in us-west2, holds the durable copy of traces and feedback, and has no lifecycle expiry. Compaction applies retention. The blob GCS bucket is multi-region us. Short-lived objects expire at 14 days and long-lived objects at 400 days. Recovery from a lost region is a restore in us-west2.
+          </aside>
+        </section>
 
-      <section class="slide section-slide" data-background-color="#030710">
-        <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
-        <div class="slide-main">
-          <p class="index">02</p>
-          <h2>Agents</h2>
-          <p class="lede">A multi-agent workflow, with a person at the decision.</p>
-        </div>
-        <aside class="notes">
-          Name the domain in the first sentence. One concrete example of the work this replaces, then move to the shape of the system.
-        </aside>
-      </section>
-
-      <section class="slide content" data-background-color="#f2faff">
-        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
-        <div class="slide-main">
-          <p class="kicker">Agents</p>
-          <h2>The work, in stages</h2>
-          <ul class="points">
-            <li>The problem, in one line.</li>
-            <li>One agent per stage, on LangGraph.</li>
-            <li>A person reviews before the step that matters.</li>
-          </ul>
-        </div>
-        <aside class="notes">
-          Replace the first line with the domain and the job to be done. Then the stages, the outside systems they call, and exactly where the human steps in.
-        </aside>
-      </section>
-
-      <section class="slide content" data-background-color="#f2faff">
-        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
-        <div class="slide-main">
-          <p class="kicker">Agents</p>
-          <h2>The choice, and the cost</h2>
-          <div class="split">
-            <div>
-              <h3>What we chose</h3>
-              <p>How the agents split the work, and why a person stays in the loop.</p>
-            </div>
-            <div>
-              <h3>What that costs</h3>
-              <p>The speed, control, or effort you gave up to get that design.</p>
+        <section class="slide content" data-background-color="#f2faff">
+          <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="kicker">Platform</p>
+            <h2>Scaling</h2>
+            <div class="split">
+              <div>
+                <h3>The size we start at</h3>
+                <p>About 20 concurrent users and 100 traces a second, with bursts toward 1,000</p>
+              </div>
+              <div>
+                <h3>The size we move to</h3>
+                <p>About 50 concurrent users and 1,000 traces a second, when the first ranges stay full.</p>
+                <ul class="points">
+                  <li>Redis - Grows with users.</li>
+                  <li>Blob GCS bucket - Grows with payloads.</li>
+                  <li><span class="pill">SmithDB</span> Cloud SQL - A larger metastore.</li>
+                  <li><span class="pill">SmithDB</span> Cache and compute - Larger machines.</li>
+                  <li><span class="pill">SmithDB</span> GCS bucket - Grows with retained traces.</li>
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
-        <aside class="notes">
-          One design choice, then the trade-off in plain language. A second pair is enough if you have time.
-        </aside>
-      </section>
+          <aside class="notes">
+            Stateless pods scale at 50 percent CPU or 80 percent memory. Queue workers also scale when Redis has a backlog. SmithDB moves from the medium configuration to the large one. Ingest, query, and compaction scale on their own, up to 10. The scheduler and the cluster manager stay at one replica, on a larger machine. Cache nodes go from n2-standard-32 to n2-standard-64. Compute nodes go from n2-standard-8 to n2-standard-16. The SmithDB metastore goes from 6 vCPU and 32 GB to 10 vCPU and 64 GB. Platform Cloud SQL stays at 2 vCPU and 8 GB. Its disk may grow. Memorystore goes from 13 GB to 26 GB. Published guidance wants more backend replicas than this first size allows. Sitting on that cap is the signal to move up.
+          </aside>
+        </section>
 
-      <section class="slide section-slide" data-background-color="#030710">
-        <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
-        <div class="slide-main">
-          <p class="index">03</p>
-          <h2>Proof</h2>
-          <p class="lede">Whether it works, and whether it matters.</p>
-        </div>
-        <aside class="notes">
-          Bridge from the build to the evidence. If you show the demo, start it after this slide and land on the numbers next.
-        </aside>
-      </section>
-
-      <section class="slide content" data-background-color="#f2faff">
-        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
-        <div class="slide-main">
-          <p class="kicker">Proof</p>
-          <h2>What the evals showed</h2>
-          <ul class="points">
-            <li>The cases the dataset has to cover.</li>
-            <li>The metrics that matter for this work.</li>
-            <li>What the LangSmith runs came back with.</li>
-          </ul>
-        </div>
-        <aside class="notes">
-          Dataset shape, then your custom metrics, then the result. Mention traces only to show you can see why a run passed or failed.
-        </aside>
-      </section>
-
-      <section class="slide content" data-background-color="#f2faff">
-        <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
-        <div class="slide-main">
-          <p class="kicker">Proof</p>
-          <h2>What the business feels</h2>
-          <div class="cards">
-            <article class="card">
-              <h3>The number</h3>
-              <p>The KPI this workflow is meant to move.</p>
-            </article>
-            <article class="card">
-              <h3>The link</h3>
-              <p>How the eval result shows up in that KPI.</p>
-            </article>
-            <article class="card">
-              <h3>After launch</h3>
-              <p>What you would watch once it is in use.</p>
-            </article>
+        <section class="slide bonus" data-background-color="#030710">
+          <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="kicker">BYOC</p>
+            <h2>If operating LangSmith yourself is more than you want, we can talk about <br>"Bring Your Own Cloud"</h2>
           </div>
-        </div>
-        <aside class="notes">
-          Translate one technical finding into one business number. Skip extra metrics. Say what “good” looks like after go-live.
-        </aside>
+          <aside class="notes">
+            Bonus, after the sizing slide. If running the cluster and the data services is more than they want to take on, LangSmith has bring-your-own-cloud options. Offer to discuss them. Do not design BYOC on this slide.
+          </aside>
+        </section>
       </section>
 
-      <section class="slide section-slide" data-background-color="#030710">
-        <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
-        <div class="slide-main">
-          <p class="index">04</p>
-          <h2>Friction</h2>
-          <p class="lede">Where the tools slowed the work, and what would fix it.</p>
-        </div>
-        <aside class="notes">
-          This is the product feedback. Be specific and brief. One friction per tool is enough.
-        </aside>
+      <!-- 02 Agents. -->
+      <section>
+        <section class="slide section-slide" data-background-color="#030710">
+          <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="index"></p>
+            <h2>Agent Development: <br> Terraform Module Review</h2>
+            <p class="lede">A module review that stops before it opens a pull request.</p>
+          </div>
+          <aside class="notes">
+            The domain is publishing a Terraform module. The slowdown is a README, a changelog, or a security finding that does not match the code. Default repo is straubt1/terraform-aws-object-storage. The picture is plans/diagrams/module-review-v4.excalidraw.
+          </aside>
+        </section>
+
+        <section class="slide content" data-background-color="#f2faff">
+          <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="kicker">Agents</p>
+            <h2>What Was Built</h2>
+            <ul class="points">
+              <li>The work is a Terraform module that is ready to publish.</li>
+              <li>Interface, security, and release read the repo in parallel.</li>
+              <li>Recommend drafts the files and the pull request.</li>
+              <li>A person answers yes or no before a Pull Request is created.</li>
+            </ul>
+          </div>
+          <aside class="notes">
+            Interface compares generated Terraform docs with the README. Security runs Trivy and keeps HIGH and CRITICAL. Release reads the latest tag and the diff, then names the next version. Recommend edits at most ten of the files those findings named. Check has no model. A missing ref ends the run.
+          </aside>
+        </section>
+
+        <section class="slide content diagram-slide" data-background-color="#f2faff">
+          <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+          <div class="slide-main">
+            <h2>Agent Architecture</h2>
+            <figure class="diagram">
+              <img src="assets/module-review-v4.png" alt="Module review. Check confirms the ref. Interface, security, and release run in parallel. Recommend drafts the files. A person at the gate says yes or no before a pull request is opened.">
+            </figure>
+          </div>
+          <aside class="notes">
+            Point at the diagram. Three specialists, one writer, and a LangGraph interrupt. Tools fetch the repo. Models return a status and findings. Every publish waits on a person. Recommend stops at ten files. Only a yes opens the pull request. Specialists do not edit files. If the diff is empty, release skips the model and says there is nothing to ship. GH_TOKEN is read from the environment. It is not a tool argument, not in a prompt, and not on graph state. The live compare redacts it before the span is stored.
+          </aside>
+        </section>
+
+        <section class="slide content" data-background-color="#f2faff">
+          <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="kicker">Agents</p>
+            <h2>Evaluation Results</h2>
+            <div class="cards">
+              <article class="card">
+                <h3>The set</h3>
+                <p>Seven frozen modules.</p>
+                <br>
+                <p>The agents call the same tools and receive canned files and diffs.</p>
+              </article>
+              <article class="card">
+                <h3>The bar</h3>
+                <p>Five scores, each pass or fail.</p>
+                <br>
+                <p>A scenario counts only when all five pass.</p>
+              </article>
+              <article class="card">
+                <h3>The cost</h3>
+                <p>Median time and tokens for each agent, read off the latest experiment.</p>
+              </article>
+            </div>
+          </div>
+          <aside class="notes">
+            Dataset name is tf-module-review. The five keys are interface status, security status, release status, suggested version, and the set of finding files. Do not quote a pass rate until an experiment is on screen. Every current row expects security to pass. Recommend's rewritten files are not scored yet. The printed medians are the number for the third card.
+          </aside>
+        </section>
+
+        <section class="slide content" data-background-color="#f2faff">
+          <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="kicker">Agents</p>
+            <h2>Business Value</h2>
+            <div class="cards">
+              <article class="card">
+                <h3>Self-service</h3>
+                <p>The module is the interface teams use to build infrastructure.</p>
+                <br>
+                <p>Clear variables and usable settings are what let that scale.</p>
+                <br>
+                <p>Interface gaps become edits on the next release.</p>
+              </article>
+              <article class="card">
+                <h3>The right bump</h3>
+                <p>Major, minor, and patch are applied inconsistently</p>
+                <br>
+                <p>Every candidate gets the same recommendation from the org rule, before the tag.</p>
+              </article>
+              <article class="card">
+                <h3>Caught in development</h3>
+                <p>The same checks run on every upcoming release.</p>
+                <br>
+                <p>A person approves the pull request. Consumers do not find the miss.</p>
+              </article>
+            </div>
+          </div>
+          <aside class="notes">
+            <p>Two outcomes. Catch problems while the release is still in development, and leave a module that is easier to use.</p>
+            <p>Self-service is the point of the catalog. A missing description, a README that drifted, or a setting that is hard to use becomes a ticket. The interface check is the usage recommendation. Recommend writes the file. The person decides whether it ships.</p>
+            <p>The bump is the contract consumers plan around. The release agent does not invent a scheme. A breaking change is major. A new optional variable or output is minor. Anything else is a patch. Applying that on every ref is how the recommendation stays consistent once there are more modules than reviewers.</p>
+            <p>KPIs, as directions. This exercise has no production baseline. The evals measure whether status, bump, and finding files are right. These are what that accuracy is for.</p>
+            <ul>
+              <li>Adoption time. Consumers spend less time decoding the module.</li>
+              <li>Bump accuracy. Share of tags that match the org rule.</li>
+              <li>Escaped defects. Interface, security, and changelog misses found on the candidate ref, before the tag.</li>
+              <li>Review capacity. Specialists run in parallel. A person only says yes or no.</li>
+            </ul>
+            <p>After launch, write that yes or no back onto the trace. A yes on a ready release is the good case. A no when the release is not ready is also a good case. A tagged module that still misses is the number to drive down.</p>
+          </aside>
+        </section>
       </section>
 
-      <section class="slide content" data-background-color="#f2faff">
+      <!-- 03 Friction. -->
+      <section>
+        <section class="slide section-slide" data-background-color="#030710">
+          <img class="logo" src="assets/langchain-lockup-white.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="index"></p>
+            <h2>Friction</h2>
+            <p class="lede">Lessons learned.</p>
+          </div>
+          <aside class="notes">
+            Product feedback. One item per slide is the shape, three is the cap. This pass is inferred from the design and the eval plan. Drop anything you did not actually hit.
+          </aside>
+        </section>
+
+        <section class="slide content" data-background-color="#f2faff">
+          <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="kicker">Friction</p>
+            <h2>What got in the way</h2>
+            <ul class="points">
+              <li>The eval stops at the human gate, so the pull request is never scored.</li>
+              <li>One drifted row fails the suite. The previous experiment is another view.</li>
+            </ul>
+          </div>
+          <aside class="notes">
+            The gate came up because interrupt returns before GitHub is called, and the experiment does not resume. The strict bar is intentional, and it makes a one-row prompt regression loud.
+          </aside>
+        </section>
+
+        <section class="slide content" data-background-color="#f2faff">
+          <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
+          <div class="slide-main">
+            <p class="kicker">Friction</p>
+            <h2>What we would ask for</h2>
+            <ul class="points">
+              <li>Let a dataset example carry a scripted yes or no for the interrupt.</li>
+              <li>A scorer that checks the required tool calls, not only the final fields.</li>
+              <li>A score for the rewritten file against the finding it was meant to fix.</li>
+            </ul>
+          </div>
+          <aside class="notes">
+            Median tokens and latency per named node are printed from the experiment runs today. Asking for that on the experiment page is the product request. Tool trajectory and a changelog-heading score are the next evaluators. A model can name the right version without reading the diff, and the current scores still pass. A token is stripped with a hand-written span on the live compare. Keep the tone to a log of what would have saved time.
+          </aside>
+        </section>
+      </section>
+
+      <section class="slide questions" data-background-color="#f2faff">
         <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
         <div class="slide-main">
-          <p class="kicker">Friction</p>
-          <h2>What we would tell the product team</h2>
-          <ul class="points">
-            <li>Where LangChain, LangGraph, or LangSmith got in the way.</li>
-            <li>The missing piece that would have saved time.</li>
-            <li>The one change you would ask for first.</li>
-          </ul>
+          <h2>Questions?</h2>
         </div>
         <aside class="notes">
-          Name the tool, the moment it hurt, and the fix. Keep it to three. This is a log, not a complaint.
+          Stop. Take questions in this order. Platform, then agents, then the business number.
         </aside>
       </section>
 
@@ -512,11 +727,11 @@
         <div class="slide-main">
           <p class="kicker">InnovateCorp</p>
           <h1>Thank you</h1>
-          <p class="lede">Questions on the platform, the agents, or the results.</p>
         </div>
         <div class="meta">
-          <span>Presenter name</span>
-          <span>name@example.com</span>
+          <span>Tom Straub</span>
+          <span>Architect</span>
+          <span>October 2026</span>
         </div>
         <svg class="arcs" viewBox="0 0 560 560" fill="none" aria-hidden="true">
           <path d="M48 520C210 520 340 390 340 228" stroke="#7fc8ff" stroke-width="1.25" stroke-dasharray="1.5 7"/>
@@ -526,7 +741,7 @@
           <circle cx="48" cy="520" r="3.5" fill="#006ddd"/>
         </svg>
         <aside class="notes">
-          Stop. Take questions in the order of the agenda: platform, agents, then value.
+          Close. Thank them.
         </aside>
       </section>
 
@@ -544,8 +759,9 @@
       controls: false,
       progress: true,
       slideNumber: false,
-      transition: "fade",
-      backgroundTransition: "fade",
+      transition: "slide",
+      backgroundTransition: "none",
+      transitionSpeed: "default",
       plugins: [ RevealNotes ]
     });
   </script>

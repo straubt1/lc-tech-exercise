@@ -79,17 +79,17 @@ tasks:
     cmds:
       - uv run pytest -q tests/test_display.py
 
-  slides:pdf:
-    desc: Export the reveal.js deck in present/ to a PDF
-    cmds:
-      - ./present/export-pdf.sh {{.CLI_ARGS}}
-
   present:
     desc: Serve the slide deck at http://langchain-presentation.arcbox.local/
     cmds:
       - docker build -t langchain-presentation present
       - docker rm -f langchain-presentation >/dev/null 2>&1 || true
       - docker run -d --name langchain-presentation --mount type=bind,src={{.ROOT_DIR}}/present,dst=/site langchain-presentation
+
+  present:pdf:
+    desc: Export the reveal.js deck in present/ to a PDF
+    cmds:
+      - ./present/export-pdf.sh {{.CLI_ARGS}}
 
   docx:
     desc: Convert the LangSmith design document to Word and open it
