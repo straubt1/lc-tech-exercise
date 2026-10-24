@@ -86,7 +86,7 @@ def _version_line(data: dict) -> Text:
     suggested = str(data.get("suggested_version") or "").strip()
     bump = str(data.get("bump") or "").strip()
     if current:
-        text.append("Current Version ", style="muted")
+        text.append("Latest Published Version ", style="muted")
         text.append(current, style="version")
     if suggested:
         if text.plain:
@@ -139,7 +139,7 @@ def show_report(console: Console, state: dict) -> None:
     suggested = str(state.get("suggested_version") or "").strip()
     bump = str(state.get("bump") or "").strip()
     if current:
-        facts.add_row("Current Version", Text(current, style="version"))
+        facts.add_row("Latest Published Version", Text(current, style="version"))
     if suggested:
         recommended = Text(suggested, style="version")
         if bump and bump != "none":

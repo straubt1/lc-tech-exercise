@@ -2,6 +2,7 @@ from review.normalize import (
     apply_files,
     bump,
     findings,
+    heading_is_ready,
     kept_files,
     no_changes,
     pull_version,
@@ -13,6 +14,15 @@ from review.normalize import (
     with_security,
     with_skipped,
 )
+
+
+def test_a_newer_heading_that_matches_the_suggestion_is_ready():
+    changelog = "# Changelog\n\n## 1.0.1\n\n- Allow public read.\n"
+    assert heading_is_ready(changelog, "v1.0.1", "v1.0.0")
+    assert heading_is_ready("# Changelog\n\n## v2.0.0\n", "2.0.0", "v1.0.0")
+    assert not heading_is_ready("# Changelog\n\n## 1.0.0\n", "v1.0.1", "v1.0.0")
+    assert not heading_is_ready("# Changelog\n\n## 1.0.0\n", "v1.0.0", "v1.0.0")
+    assert not heading_is_ready("# Changelog\n\n## Unreleased\n", "v1.0.0", "")
 
 
 def test_version_adds_a_leading_v_and_leaves_other_text():

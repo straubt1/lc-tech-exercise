@@ -31,7 +31,7 @@ def test_step_line_counts_findings_and_shows_the_version():
     assert "2 findings" in text
     assert "pass" in text
     assert "not ready" in text
-    assert "Current Version" in text
+    assert "Latest Published Version" in text
     assert "v1.0.1" in text
     assert "Recommended Version" in text
     assert "v1.0.2" in text
@@ -65,7 +65,7 @@ def test_report_keeps_literal_brackets_and_hides_file_bodies():
     text = buffer.getvalue()
     assert "fail" in text
     assert "not ready" in text
-    assert "Current Version" in text
+    assert "Latest Published Version" in text
     assert "v1.0.1" in text
     assert "Recommended Version" in text
     assert "v1.0.2" in text

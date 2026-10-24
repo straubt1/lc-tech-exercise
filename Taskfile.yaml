@@ -52,6 +52,12 @@ tasks:
     cmds:
       - uv run pytest -q -k "not langsmith"
 
+  expirement:create:
+    desc: Run the current agent over the dataset and create a LangSmith experiment
+    dir: part2
+    cmds:
+      - uv run python -c 'from review.evals import run_evaluation; run_evaluation()'
+
   test:tools:
     desc: Run the tool tests
     dir: part2

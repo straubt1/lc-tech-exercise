@@ -13,7 +13,7 @@ from review.reader import Reader
 _API = "https://api.github.com"
 _SUFFIX_ALPHABET = string.ascii_lowercase + string.digits
 _AGENT_GIT = {
-    "name": "Review Agent",
+    "name": "Terraform Module Review Agent",
     "email": "review-agent@users.noreply.github.com",
 }
 _TITLE_PREFIX = "[Review Agent]"

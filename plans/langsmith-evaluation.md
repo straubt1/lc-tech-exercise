@@ -41,7 +41,7 @@ MODEL=openai:gpt-4.1-mini
 `run_evaluation` in `part2/src/review/evals.py`:
 
 1. Loads `part2/evals/tf-module-review.json`.
-2. Upserts the LangSmith dataset `tf-module-review`. Existing examples are deleted and recreated from the file, so the cloud dataset cannot drift from git. Old experiments stay.
+2. Upserts the LangSmith dataset `tf-module-review` and tags it with the Agent value in `LANGSMITH_PROJECT`. That tag is what makes the dataset show up when that agent is selected. Each example id is a UUID derived from `inputs.id`, so a resync updates the same row instead of minting a new one. Rows that are no longer in the file are deleted. Old experiments stay, and a later experiment still lines up with an earlier one on the same scenario.
 3. Calls `langsmith.evaluate` with the target and five evaluators. `experiment_prefix` is `tf-module-review`. `max_concurrency` is 1.
 4. Prints median latency and median token count for `interface`, `security`, `release`, and `recommend`.
 
@@ -79,24 +79,23 @@ The seven rows in `part2/evals/tf-module-review.json`:
 
 | id | What it forces the agent to notice | Expected |
 | --- | --- | --- |
-| `docs-match` | No diff since `v1.0.0` | Stay on `v1.0.0`. Release not ready. Finding on `CHANGELOG.md`. |
+| `docs-match` | No diff since `v1.0.0` | `suggested_version` is `none`. Release not ready. Finding on `CHANGELOG.md`. |
 | `optional-variable-stale-readme` | New optional variable, README silent, changelog says Unreleased | Interface fail on `README.md`. Minor `v1.1.0`. Release not ready. Finding also on `CHANGELOG.md`. |
 | `required-variable-documented` | New required variable, README and changelog updated | Interface pass. Major `v2.0.0`. Release ready. No findings. |
 | `output-renamed` | Output renamed, README still lists the old name, changelog ready | Interface fail on `README.md`. Major `v2.0.0`. Release ready. |
-| `changelog-misses-fix` | Behavior fix, contract unchanged, changelog still on `1.0.0` | Interface pass. Patch `v1.0.1`. Release not ready. Finding on `CHANGELOG.md`. |
+| `changelog-misses-fix` | Versioning added, contract unchanged, changelog still on `1.0.0`. Trivy reports LOW only | Interface pass. Patch `v1.0.1`. Release not ready. Security pass. Finding on `CHANGELOG.md`. |
 | `no-tags-no-version` | No tags, changelog has no version | Suggest `v1.0.0`. Release not ready. Finding on `CHANGELOG.md`. |
-| `changelog-version-without-tag` | No tags, changelog heading is `1.2.0` | Suggest `v1.2.0`. Release ready. No findings. |
+| `public-bucket` | Bucket ACL is `public-read`. Trivy HIGH on `main.tf`, plus a LOW logging finding to drop | Interface pass. Security fail on `main.tf`. Patch `v1.0.1`. Release ready. |
 
 ### Still thin
 
-- Every row expects `security_status: pass`. The security agent runs and is scored, and it has never been asked to fail. Add a public bucket, a missing encryption argument, or a Trivy error string in the fixture.
 - Recommend's rewritten files are in the trace and are not in `outputs`. Add a row whose expected `README.md` or changelog heading is known, so the score says whether the pull request would actually fix the finding.
 - `bump` (`major`, `minor`, `patch`, `none`) is on graph state and is not a reference output. A right version can hide a wrong reason.
 
 ### Adding a row
 
 1. Append an object under `examples` in `part2/evals/tf-module-review.json` with `inputs.id`, `inputs.files`, `inputs.tags`, `inputs.compares`, and `outputs`.
-2. Re-run `test_langsmith_experiment`. `sync_dataset` replaces the cloud examples.
+2. Re-run `test_langsmith_experiment`. `sync_dataset` upserts the cloud examples by scenario id.
 3. Open the new row in the experiment. If the model followed the prompt and the JSON expected the other status, fix the JSON. If the tool output is right and the structured response is wrong, fix the prompt.
 
 ## Evaluators
@@ -115,6 +114,10 @@ Already implemented, all score 0 or 1:
 
 `_exact` and `finding_files` are plain functions in `part2/src/review/evals.py`. They are passed in the `evaluators` list to `evaluate`.
 
+`decisions_passed` is a summary evaluator over the whole experiment. Its score is the fraction of rows where all five keys are 1. The comment is the count, such as `4 of 7`.
+
+`finding_groundedness` is an LLM-as-judge. It reads the diff, the files at the candidate ref, and the finding sentences, and returns 0 or 1 for "the sentences describe that evidence." The comment is the reason. It is a column on the experiment and is not part of `decisions_passed`. The prompt is `part2/src/review/prompts/groundedness.md`.
+
 ### Next metrics
 
 Add these in the same style. Keep code checks on fields that have a known answer. Use a judge only for sentences.
@@ -122,12 +125,10 @@ Add these in the same style. Keep code checks on fields that have a known answer
 - **bump** — exact match on `major` / `minor` / `patch` / `none`. Return it from `target` and add it to each example's outputs.
 - **tool trajectory** — score 1 when interface called `terraform_docs` once, security called `trivy_config` once, and release called `get_last_release_tag` then `get_diff_since_last_release`. Read this off the child runs. A model that guesses the changelog without the diff should fail even when the version matches. On `docs-match`, release has no model call: the graph sees `no changes` and returns the current tag itself. That row's trajectory is "tools not called, and that is correct."
 - **changelog heading** — the proposed `CHANGELOG.md` starts with `##` plus `suggested_version`. This scores recommend, which is currently unscored. `target` would also return `proposed_files`.
-- **finding groundedness** — an LLM-as-judge, only where the filename match is not enough. The judge sees the fixture diff and the finding text and returns 0 or 1 for "the sentence describes that diff."
-- **summary** — fraction of rows where every key is 1. That number goes on the slide.
 
 ## Performance metrics
 
-LangSmith records start time, end time, token counts, and cost on every run. `print_performance` lists the runs in the experiment, keeps the four agent names, drops nested duplicates of those names, and prints the median latency and the median token count. Tokens are summed from leaf runs so a parent span that already includes its children is not counted twice.
+LangSmith records start time, end time, token counts, and cost on every run. `print_performance` lists the runs in the experiment, keeps the four agent names, drops nested duplicates of those names, and prints the median latency, the median token count, and the median cost. Tokens and cost are summed from leaf runs so a parent span that already includes its children is not counted twice. Cost is LangSmith's price for the model. Tool runs have none.
 
 Interface, security, and release run in parallel, then recommend waits for all three. A slow security tool shows up as security latency. A recommend that re-invokes because a file was missing shows up as recommend tokens. The wall clock of one example is about `max(interface, security, release) + recommend`.
 
@@ -136,10 +137,10 @@ Use the medians as a budget. When a prompt change holds the pass rate flat and r
 Printed line shape:
 
 ```text
-interface median_latency_s=1.20 median_tokens=800
-security median_latency_s=1.40 median_tokens=900
-release median_latency_s=1.10 median_tokens=700
-recommend median_latency_s=2.00 median_tokens=1500
+interface median_latency_s=1.20 median_tokens=800 median_cost=0.000300
+security median_latency_s=1.40 median_tokens=900 median_cost=0.000350
+release median_latency_s=1.10 median_tokens=700 median_cost=0.000280
+recommend median_latency_s=2.00 median_tokens=1500 median_cost=0.001000
 ```
 
 ## How to read a trace
@@ -181,7 +182,7 @@ The same tree appears for `uv run --directory part2 python -m review`, in the tr
 
 Change one cause, then run the experiment again.
 
-**The reference is wrong.** The trace shows the model followed the prompt, and the JSON expected the other status. Edit `part2/evals/tf-module-review.json`. The next `sync_dataset` replaces the cloud examples. Do this when the rubric changed.
+**The reference is wrong.** The trace shows the model followed the prompt, and the JSON expected the other status. Edit `part2/evals/tf-module-review.json`. The next `sync_dataset` updates that example in place. Do this when the rubric changed.
 
 **The prompt is wrong.** The tool output is right and the structured response is wrong. Edit one file under `part2/src/review/prompts/`. Open the comparison between the two experiments. LangSmith lines the rows up by example. The previously failing row should flip to 1, and the previously passing rows should stay 1. A prompt that fixes `output-renamed` and breaks `docs-match` shows up on one screen.
 

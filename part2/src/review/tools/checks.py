@@ -80,13 +80,15 @@ def build_release_tools(held: dict):
 
     @tool
     def get_diff_since_last_release() -> str:
-        """Return the diff from the latest release tag to the candidate ref.
+        """Return the diff from the latest release tag to the candidate ref, plus CHANGELOG.md.
 
-        Already loaded for this run. Says there is no prior release when the repo has no tag.
+        The changelog is the file at the candidate ref, already loaded for this run.
+        An unchanged changelog is absent from the diff and is still included here.
+        Says there is no prior release when the repo has no tag.
         """
         tags = held.get("release_tags") or []
-        if not tags:
-            return "No prior release."
-        return held.get("diff") or ""
+        diff = "No prior release." if not tags else (held.get("diff") or "")
+        changelog = _clip(held.get("changelog") or "")
+        return "\n".join(["diff", diff, "", "CHANGELOG.md", changelog])
 
     return [get_last_release_tag, get_diff_since_last_release]

@@ -83,7 +83,7 @@ Findings in one file can be a single finding. Findings on the same line with the
 
 ## release
 
-Decides whether `CHANGELOG.md` is ready and recommends the next version. The node loads the latest release tag and the diff before the model runs. Those two values are held for the tools. They are not graph state.
+Decides whether `CHANGELOG.md` is ready and recommends the next version. The node loads the latest release tag and the diff before the model runs. When the model runs, it also loads `CHANGELOG.md` at `ref`. Those values are held for the tools. They are not graph state.
 
 | | |
 | --- | --- |
@@ -92,15 +92,15 @@ Decides whether `CHANGELOG.md` is ready and recommends the next version. The nod
 | Required inputs | `repo`, `ref` |
 | Returns | `status` (`ready` or `not ready`), `suggested_version`, `bump` (`major`, `minor`, `patch`, or `none`), `findings` |
 
-`get_last_release_tag` returns the newest tag loaded for this run, or empty when the repo has no release tag. `get_diff_since_last_release` returns the compare from that tag to `ref`, or `No prior release.` when there is no tag.
+`get_last_release_tag` returns the newest tag loaded for this run, or empty when the repo has no release tag. `get_diff_since_last_release` returns the compare from that tag to `ref`, or `No prior release.` when there is no tag, and the `CHANGELOG.md` loaded for this run. The changelog is the file at `ref`. An unchanged changelog is absent from the diff and is still returned.
 
-**Reads:** `repo`, `ref`. The tools then read the tag list and the diff the node just loaded. They do not read other state keys.
+**Reads:** `repo`, `ref`. The tools then read the tag list, the diff, and the changelog the node just loaded. They do not read other state keys.
 
 **Writes:** `release_status`, `release_findings`, `current_version`, `suggested_version`, `bump`.
 
 When the diff says there are no changes, the model is not called. Status is `not ready`, `current_version` is the current tag, `suggested_version` is `none`, `bump` is `none`, and the finding on `CHANGELOG.md` says there is nothing new to release. A model reply with `bump` `none` is stored the same way. A tag lookup error is also `not ready`, with that error as the finding and an empty version and bump. The other two agents still run.
 
-Any finding forces `not ready`. A version that is plain semver is stored with a leading `v`. If the agent stops early, status is `not ready` and the finding is on `CHANGELOG.md`.
+Any finding forces `not ready`. When the top changelog heading is the suggested version and that version is newer than the current tag, the node stores `ready` and clears the findings. A version that is plain semver is stored with a leading `v`. If the agent stops early, status is `not ready` and the finding is on `CHANGELOG.md`.
 
 ## recommend
 

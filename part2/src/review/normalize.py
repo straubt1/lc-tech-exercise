@@ -31,6 +31,37 @@ def version(text: str) -> str:
     return "v" + text
 
 
+def _parts(text: str) -> tuple[int, int, int] | None:
+    match = _VERSION.fullmatch(version(text))
+    if not match:
+        return None
+    nums = match.group(1).split("-", 1)[0].split(".")
+    return int(nums[0]), int(nums[1]), int(nums[2])
+
+
+def top_heading(changelog: str) -> str:
+    for line in (changelog or "").splitlines():
+        line = line.strip()
+        if line.startswith("## "):
+            return version(line[3:].strip())
+    return ""
+
+
+def heading_is_ready(changelog: str, suggested: str, current: str) -> bool:
+    """The top heading is the suggested version, and that version is newer than the tag."""
+    heading = top_heading(changelog)
+    suggested = version(suggested)
+    if not heading or heading != suggested or suggested in {"", "none"}:
+        return False
+    current_parts = _parts(current)
+    suggested_parts = _parts(suggested)
+    if suggested_parts is None:
+        return False
+    if current_parts is None:
+        return True
+    return suggested_parts > current_parts
+
+
 def pull_version(state: dict) -> str:
     """Branch name uses the recommended version, or the current tag when there is no bump."""
     suggested = str(state.get("suggested_version") or "").strip()
@@ -177,7 +208,7 @@ def recommend_text(state: dict, chosen: list[str], skipped: list[str], missing: 
         f"Security findings: {state.get('security_findings', [])}",
         f"Release: {state.get('release_status', '')}",
         f"Release findings: {state.get('release_findings', [])}",
-        f"Current version: {state.get('current_version', '')}",
+        f"Latest Published Version: {state.get('current_version', '')}",
         f"Suggested version: {state.get('suggested_version', '')}",
         f"Bump: {state.get('bump', '')}",
     ]

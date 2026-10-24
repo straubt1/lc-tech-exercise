@@ -14,6 +14,7 @@ from review.agents.security import build as build_security
 from review.normalize import (
     apply_files,
     bump,
+    heading_is_ready,
     kept_files,
     no_changes,
     pull_version,
@@ -36,7 +37,7 @@ from review.tools.checks import (
 )
 from review.tools.github import build_recommend_tools, open_pull_request
 
-_AGENT = {"recursion_limit": 80}
+_AGENT = {"recursion_limit": 40}
 
 # Default means the CLI and tests get an in-memory saver. None means no saver,
 # which is what LangGraph dev requires so it can attach its own.
@@ -139,6 +140,7 @@ def run_release(state: State, agent, reader: Reader, held: dict) -> dict:
             "none",
             latest,
         )
+    held["changelog"] = reader.read_file("CHANGELOG.md", ref)
     repo = state.get("repo") or ""
     body = invoke(
         agent,
@@ -146,6 +148,8 @@ def run_release(state: State, agent, reader: Reader, held: dict) -> dict:
             [
                 f"Decide if {repo} at ref {ref} is ready for a release.",
                 "Call get_last_release_tag, then get_diff_since_last_release.",
+                "Read the top CHANGELOG.md heading from that tool.",
+                "When that heading is the suggested version, status is ready and findings is empty.",
                 "When bump is none, suggested_version is none.",
                 "Return status, suggested_version, bump, and findings.",
             ]
@@ -165,13 +169,11 @@ def run_release(state: State, agent, reader: Reader, held: dict) -> dict:
             latest,
         )
     label, rows = status(body, "ready", "not ready")
-    return released(
-        label,
-        rows,
-        version(body.get("suggested_version") or ""),
-        bump(body.get("bump") or ""),
-        latest,
-    )
+    suggested = version(body.get("suggested_version") or "")
+    chosen = bump(body.get("bump") or "")
+    if chosen != "none" and heading_is_ready(held.get("changelog") or "", suggested, latest):
+        label, rows = "ready", []
+    return released(label, rows, suggested, chosen, latest)
 
 
 def run_recommend(state: State, agent, allowed: dict) -> dict:

@@ -302,7 +302,7 @@ def test_a_blank_title_becomes_a_title_and_a_blank_body_lists_findings(monkeypat
         suffix=lambda: "a1b2c3",
     )
     assert request.pull["title"] == "[Review Agent] Update the Readme for v1.2.0"
-    assert request.commit["author"]["name"] == "Review Agent"
+    assert request.commit["author"]["name"] == "Terraform Module Review Agent"
     assert request.commit["committer"] == request.commit["author"]
     assert "Interface: fail" in request.pull["body"]
     assert "Suggested version: v1.2.0" in request.pull["body"]
@@ -379,7 +379,7 @@ def test_open_pull_request_commits_docs_and_uses_the_token_from_the_environment(
         if method == "POST" and url.endswith("/git/commits")
     )
     assert commit["author"] == {
-        "name": "Review Agent",
+        "name": "Terraform Module Review Agent",
         "email": "review-agent@users.noreply.github.com",
     }
     assert commit["committer"] == commit["author"]

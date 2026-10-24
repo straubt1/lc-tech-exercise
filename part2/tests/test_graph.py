@@ -284,7 +284,11 @@ def test_no_changes_is_not_ready_and_stays_on_the_tag():
 
 def test_release_tools_read_the_loaded_tag_and_diff():
     diff = "status: ahead\nahead_by: 1\nassets-rename\n"
-    reader = FixtureReader(tags=["v1.2.0", "v1.0.0"], compares={("v1.2.0", "latest"): diff})
+    reader = FixtureReader(
+        tags=["v1.2.0", "v1.0.0"],
+        compares={("v1.2.0", "latest"): diff},
+        files={("latest", "CHANGELOG.md"): "# Changelog\n\n## 1.3.0\n"},
+    )
     paused = _graph(ReleaseToolsModel(), reader).invoke(
         {"repo": "fixture/mod", "ref": "latest", "pr_url": ""},
         {"configurable": {"thread_id": "release-tools"}},
@@ -294,6 +298,8 @@ def test_release_tools_read_the_loaded_tag_and_diff():
     finding = paused["release_findings"][0]["finding"]
     assert "tag v1.2.0" in finding
     assert "assets-rename" in finding
+    assert "## 1.3.0" in finding
+    assert "changelog" not in paused
 
 
 def test_follow_prints_each_check_once():

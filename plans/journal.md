@@ -1,5 +1,88 @@
 # Journal
 
+## Decisions
+
+- Which MODEL and why
+- Why THESE agents
+- 
+
+
+## Friction
+
+- Limiting number of tool calls (read_file recursion early was a problem)
+- As well as token budget to stop things
+
+## Testing
+
+
+### Datasets
+
+Upload from disk
+```
+uv run python -c '
+from langsmith import Client
+from review.evals import load_spec, sync_dataset
+spec = load_spec()
+sync_dataset(Client(), spec["examples"], spec.get("description") or "")
+'
+```
+
+### Expirement
+
+```
+uv run python -c '
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path(".env"))
+from langsmith import Client, evaluate
+from review.evals import DATASET, target
+evaluate(
+    target,
+    data=DATASET,
+    experiment_prefix=DATASET,
+    max_concurrency=1,
+    description="What you changed",
+    client=Client(),
+)
+'
+```
+
+#### Results
+
+with model = "anthropic:claude-haiku-5-5"
+```
+View the evaluation results for experiment: 'tf-module-review-b6647a67' at:
+https://smith.langchain.com/o/b903f266-4771-4a65-ae1e-cdff888dc287/datasets/3e05bd13-feb4-4db6-87f0-06249c935da4/compare?selectedSessions=b1e1fb78-6408-41b2-a329-c2ebd1a65315
+
+
+interface median_latency_s=1.95 median_tokens=2759
+security median_latency_s=2.47 median_tokens=2671
+release median_latency_s=2.34 median_tokens=5640
+recommend median_latency_s=4.33 median_tokens=5505
+```
+
+
+with model = "anthropic:claude-sonnet-5-5"
+```
+View the evaluation results for experiment: 'tf-module-review-f5c4c326' at:
+https://smith.langchain.com/o/b903f266-4771-4a65-ae1e-cdff888dc287/datasets/3e05bd13-feb4-4db6-87f0-06249c935da4/compare?selectedSessions=36f37131-8332-4430-b150-519511da932a
+
+
+interface median_latency_s=3.50 median_tokens=2971
+security median_latency_s=3.35 median_tokens=2787
+release median_latency_s=2.66 median_tokens=4063
+recommend median_latency_s=8.25 median_tokens=5916
+```
+
+### Evaluators
+
+Current: code evaluator
+
+Considering LLM as a Judge.
+
+## Evals
+
+`uv run --directory part2 pytest tests/test_evals.py::test_langsmith_experiment -s`
 
 ## Important points
 

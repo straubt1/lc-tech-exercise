@@ -1,6 +1,7 @@
 # TODO
 
 
+- Where can we use middleware?
 - add to agent review variable recommendations around grouping like items and default parts
   - Update the interface agent to have an additional check -> "user experience" that will look at input and output variables for those that can be groupe together (example: "vm_memory", "vm_cpu", "vm_iops" could be better as "{ vm: {memory, cpu, iops}}" object. We likely need a few examples in the prompt. This finding would go into the recommendation agent that would update this in code and 
 - highlighting areas for improvement in LangChain/LangGraph/LangSmith and any missing features (friction log)
@@ -17,3 +18,4 @@
   - one place to push recommendations 
   - can be consumed as they like
   - easier to tune over time
+- https://files.cdn.thinkific.com/file_uploads/967498/attachments/982/391/ec7/LangChain_Academy_-_Intro_to_LangSmith_Course_Slides.pdf

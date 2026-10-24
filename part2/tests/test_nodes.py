@@ -71,10 +71,12 @@ def test_release_short_circuits_and_normalizes_the_version():
     assert result["suggested_version"] == "none"
     assert result["bump"] == "none"
     assert held["release_tags"] == ["v1.2.3-rc1"]
+    assert "changelog" not in held
 
     changed = FixtureReader(
         tags=["v1.0.0"],
         compares={("v1.0.0", "latest"): "status: ahead\nahead_by: 1\n"},
+        files={("latest", "CHANGELOG.md"): "# Changelog\n\n## 1.0.0\n"},
     )
     agent = FakeAgent(
         [
@@ -86,10 +88,34 @@ def test_release_short_circuits_and_normalizes_the_version():
             }
         ]
     )
-    result = run_release({"repo": "acme/mod", "ref": "latest"}, agent, changed, {})
+    loaded = {}
+    result = run_release({"repo": "acme/mod", "ref": "latest"}, agent, changed, loaded)
+    assert loaded["changelog"] == "# Changelog\n\n## 1.0.0\n"
     assert result["release_status"] == "not ready"
     assert result["suggested_version"] == "v1.1.0"
     assert result["current_version"] == "v1.0.0"
+
+
+def test_a_matching_heading_drops_an_extra_finding():
+    reader = FixtureReader(
+        tags=["v1.0.0"],
+        compares={("v1.0.0", "latest"): "status: ahead\nahead_by: 1\n"},
+        files={("latest", "CHANGELOG.md"): "# Changelog\n\n## 1.0.1\n\n- Allow public read.\n"},
+    )
+    agent = FakeAgent(
+        [
+            {
+                "status": "not ready",
+                "suggested_version": "v1.0.1",
+                "bump": "patch",
+                "findings": [{"filename": "CHANGELOG.md", "finding": "confirm the security intent"}],
+            }
+        ]
+    )
+    result = run_release({"repo": "acme/mod", "ref": "latest"}, agent, reader, {})
+    assert result["release_status"] == "ready"
+    assert result["release_findings"] == []
+    assert result["suggested_version"] == "v1.0.1"
 
 
 def test_a_none_bump_clears_the_suggested_version():

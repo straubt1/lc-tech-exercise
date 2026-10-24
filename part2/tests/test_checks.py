@@ -42,10 +42,18 @@ def test_trivy_config_returns_the_full_report():
 
 
 def test_release_tools_read_the_holder():
-    held = {"release_tags": ["v1.2.0", "v1.0.0"], "diff": "ahead assets-rename"}
+    held = {
+        "release_tags": ["v1.2.0", "v1.0.0"],
+        "diff": "ahead assets-rename",
+        "changelog": "# Changelog\n\n## 1.3.0\n",
+    }
     tag, diff = build_release_tools(held)
     assert tag.invoke({}) == "v1.2.0"
-    assert diff.invoke({}) == "ahead assets-rename"
+    text = diff.invoke({})
+    assert text.startswith("diff\nahead assets-rename")
+    assert "## 1.3.0" in text
     held["release_tags"] = []
     assert tag.invoke({}) == ""
-    assert diff.invoke({}) == "No prior release."
+    text = diff.invoke({})
+    assert "No prior release." in text
+    assert "## 1.3.0" in text
