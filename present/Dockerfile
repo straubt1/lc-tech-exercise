@@ -10,6 +10,7 @@ WORKDIR /site
 RUN npm install -g live-server@1.2.2
 
 COPY index.html ./
+COPY favicon.ico ./
 COPY assets ./assets
 
 EXPOSE 80

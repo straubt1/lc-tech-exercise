@@ -154,7 +154,7 @@ Follow `.cursor/skills/excalidraw-diagrams/SKILL.md`: edit the JSON, export a PN
 | File | What it shows |
 | --- | --- |
 | `plans/diagrams/langsmith-components.excalidraw` | Browser and SDK, the seven LangSmith services, Memorystore as the queue, SmithDB ingestion and query, the metastore and the SmithDB bucket as the trace sinks, the blob bucket, Cloud SQL as metadata. Arrow for the trace path. |
-| `plans/diagrams/langsmith-deployment.excalidraw` | Dedicated VPC, private GKE nodes across zones, namespace `langsmith`, general pool and tainted SmithDB pool, Envoy Gateway, both Cloud SQL instances and Memorystore on private IPs, both GCS buckets via Private Google Access, Cloud NAT egress to Beacon and model APIs. |
+| `part1/langsmith-deployment.excalidraw` and `present/assets/langsmith-deployment.excalidraw` | Dedicated VPC, private GKE nodes across zones, namespace `langsmith`, general pool and tainted SmithDB pool, Envoy Gateway, both Cloud SQL instances and Memorystore on private IPs, both GCS buckets via Private Google Access, Cloud NAT egress to Beacon and model APIs. |
 | `plans/diagrams/langsmith-scale.excalidraw` | `production` beside `production-large`. Groups for CPU autoscaling, ingest scaling, SmithDB scaling, and managed services, using the numbers from Repo notes. |
 
 Each `.excalidraw` has a `.png` beside it. The markdown links the PNG.

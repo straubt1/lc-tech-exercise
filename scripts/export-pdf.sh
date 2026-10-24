@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Export present/index.html to a PDF, one slide per page.
-# Usage: ./present/export-pdf.sh [output.pdf]
+# Usage: ./scripts/export-pdf.sh [output.pdf]
+# Default output is deliverables/presentation.pdf.
 set -euo pipefail
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUT="${1:-"$DIR/presentation.pdf"}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PRESENT="$ROOT/present"
+OUT="${1:-"$ROOT/deliverables/presentation.pdf"}"
 
 if [[ "$OUT" != /* ]]; then
   OUT="$(pwd)/$OUT"
@@ -21,7 +23,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$DIR" >/dev/null 2>&1 &
+python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$PRESENT" >/dev/null 2>&1 &
 SERVER_PID=$!
 
 ready=0

@@ -1,6 +1,6 @@
 # Module review
 
-The flow is drawn in [module-review-v4.excalidraw](module-review-v4.excalidraw).
+The flow is drawn in [module-review-v4.excalidraw](../../present/assets/module-review-v4.excalidraw).
 
 `check` confirms the repo and ref. Interface, security, and release then run in parallel. Recommend applies their findings to at most 10 files and offers a pull request. The gate asks for yes or no, and opens the pull request only on yes.
 

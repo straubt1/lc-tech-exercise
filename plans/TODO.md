@@ -19,3 +19,9 @@
   - can be consumed as they like
   - easier to tune over time
 - https://files.cdn.thinkific.com/file_uploads/967498/attachments/982/391/ec7/LangChain_Academy_-_Intro_to_LangSmith_Course_Slides.pdf
+
+
+- review A's input for design doc
+- record demo
+- rebuild all pdf's
+- 

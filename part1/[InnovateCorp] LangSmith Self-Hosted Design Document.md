@@ -54,7 +54,7 @@ The Cloud SQL instance deployed for the initial phase also holds short-term and 
 
 The platform uses `us-west2` as its primary region. A dedicated VPC in that region holds the GKE cluster and the managed databases. Where a Google Cloud product offers a multi-region configuration, this design uses it. Payload and attachment storage is a multi-region `us` bucket. The SmithDB bucket remains a single-region bucket in `us-west2`, because SmithDB requires that placement. Private nodes reach Cloud Storage without public addresses.
 
-![Deployment architecture in us-west2](../plans/diagrams/langsmith-deployment.png)
+![Deployment architecture in us-west2](langsmith-deployment.png)
 
 | Component | Purpose |
 | --- | --- |

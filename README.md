@@ -4,13 +4,20 @@ Take-home exercise for the Deployed Architect, Professional Services role.
 
 The scenario is a Professional Services engagement with InnovateCorp. It has two parts: a design for a self-hosted LangSmith deployment, and a multi-agent system that reviews a Terraform module before it is published. A person approves the suggested changes before a pull request is opened.
 
-The finished submission is the design document, the agent and its evaluations, and the stakeholder presentation. Those live in `part1`, `part2`, and `present`.
+## deliverables
+
+The completed submission assets.
+
+- `[InnovateCorp] LangSmith Self-Hosted Design Document.pdf` is the design document.
+- `presentation.pdf` is the Presentation deck.
+- `langsmith-deployment.png` is the deployment diagram used in the design document and the deck.
+- `module-review-v4.png` is the agent diagram used in the deck.
 
 ## part1
 
 Source for the design document.
 
-`[InnovateCorp] LangSmith Self-Hosted Design Document.md` is the markdown the design document is generated from. The PDF beside it is that document.
+`[InnovateCorp] LangSmith Self-Hosted Design Document.md` is the markdown. `langsmith-deployment.excalidraw` is the diagram that markdown embeds, and the PNG beside it is the picture. Building the document writes the PDF into `deliverables/`.
 
 ## part2
 
@@ -31,8 +38,8 @@ The review system is in `src/review/`.
 
 The stakeholder presentation, built with [Reveal.js](https://revealjs.com/).
 
-`index.html` is the deck. `presentation.pdf` is the export. `assets/` holds the diagrams and lockups used on the slides.
+`index.html` is the deck. Diagram scenes live in `assets/` next to the pictures the slides use: `langsmith-deployment.excalidraw` and `module-review-v4.excalidraw`. Lockups are the SVG files in that same folder. Exporting the deck writes `deliverables/presentation.pdf`.
 
 ## plans
 
-Working notes, diagram sources, and the short demo used while building the exercise. The finished assets are in `part1`, `part2`, and `present`.
+Working notes and earlier diagram versions. The finished assets are in `deliverables/`.

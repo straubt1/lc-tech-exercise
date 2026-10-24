@@ -4,13 +4,13 @@ vars:
   IMAGE: module-review
 
 tasks:
-  build:
+  agent:build:
     desc: Build the local review image
     dir: part2
     cmds:
       - docker build -t {{.IMAGE}} .
 
-  run:
+  agent:run:
     desc: Review with .env. Set GITHUB_REPO, GITHUB_CANDIDATE_REF, or TRIVY_SEVERITY to override.
     dir: part2
     interactive: true
@@ -19,7 +19,7 @@ tasks:
         docker run --rm -it --env-file .env \
           {{.IMAGE}}
 
-  object-storage:
+  agent:run:object-storage:
     desc: Review straubt1/terraform-aws-object-storage at latest
     interactive: true
     cmds:
@@ -28,7 +28,7 @@ tasks:
           GITHUB_REPO: straubt1/terraform-aws-object-storage
           GITHUB_CANDIDATE_REF: latest
 
-  variable:
+  agent:run:variable:
     desc: Review straubt1/terraform-aws-object-storage at latest-variable
     interactive: true
     cmds:
@@ -37,7 +37,7 @@ tasks:
           GITHUB_REPO: straubt1/terraform-aws-object-storage
           GITHUB_CANDIDATE_REF: latest-variable
 
-  project-factory:
+  agent:run:project-factory:
     desc: Review terraform-google-modules/terraform-google-project-factory at main
     interactive: true
     cmds:
@@ -46,7 +46,7 @@ tasks:
           GITHUB_REPO: terraform-google-modules/terraform-google-project-factory
           GITHUB_CANDIDATE_REF: main
 
-  test:
+  agent:test:
     desc: Run the unit tests, skipping the live LangSmith experiment
     dir: part2
     cmds:
@@ -58,41 +58,11 @@ tasks:
     cmds:
       - uv run python -c 'from review.evals import run_evaluation; run_evaluation()'
 
-  test:tools:
+  agent:test:tools:
     desc: Run the tool tests
     dir: part2
     cmds:
       - uv run pytest -q tests/test_checks.py tests/test_reader.py
-
-  test:agents:
-    desc: Run the agent tests
-    dir: part2
-    cmds:
-      - uv run pytest -q tests/test_agents.py
-
-  test:normalize:
-    desc: Run the normalize tests
-    dir: part2
-    cmds:
-      - uv run pytest -q tests/test_normalize.py
-
-  test:nodes:
-    desc: Run the node tests
-    dir: part2
-    cmds:
-      - uv run pytest -q tests/test_nodes.py
-
-  test:graph:
-    desc: Run the graph tests
-    dir: part2
-    cmds:
-      - uv run pytest -q tests/test_graph.py
-
-  test:display:
-    desc: Run the display tests
-    dir: part2
-    cmds:
-      - uv run pytest -q tests/test_display.py
 
   present:
     desc: Serve the slide deck at http://langchain-presentation.arcbox.local/
@@ -102,19 +72,25 @@ tasks:
       - docker run -d --name langchain-presentation --mount type=bind,src={{.ROOT_DIR}}/present,dst=/site langchain-presentation
 
   present:pdf:
-    desc: Export the reveal.js deck in present/ to a PDF
+    desc: Export the reveal.js deck to deliverables/presentation.pdf
     cmds:
-      - ./present/export-pdf.sh {{.CLI_ARGS}}
+      - ./scripts/export-pdf.sh {{.CLI_ARGS}}
+
+  diagrams:
+    desc: Export each diagram PNG beside its scene and into deliverables/
+    cmds:
+      - ./scripts/export-diagrams.sh
 
   docx:
-    desc: Convert the LangSmith design document to Word and open it
+    desc: Convert the LangSmith design document to Word in deliverables/ and open it
     summary: |
       markdown-to-docx is a home-grown utility. Other people are unlikely to have it installed.
     vars:
       INPUT: 'part1/[InnovateCorp] LangSmith Self-Hosted Design Document.md'
-      OUT: '{{.OUTPUT | default (printf "%s.docx" (.INPUT | trimSuffix ".md"))}}'
+      OUT: '{{.OUTPUT | default "deliverables/[InnovateCorp] LangSmith Self-Hosted Design Document.docx"}}'
       OPEN: '{{.OPEN | default "true"}}'
     cmds:
+      - mkdir -p "{{.ROOT_DIR}}/deliverables"
       - markdown-to-docx convert
           --input "{{.ROOT_DIR}}/{{.INPUT}}"
           --output "{{.ROOT_DIR}}/{{.OUT}}"
@@ -122,11 +98,11 @@ tasks:
       - cmd: open "{{.ROOT_DIR}}/{{.OUT}}"
         if: '[ "{{.OPEN}}" = "true" ]'
 
-  docx:convert:
-    desc: Build the Word document, then replace the PDF beside it
+  docx:pdf:
+    desc: Build the Word document, then write the PDF beside it in deliverables/
     vars:
       INPUT: 'part1/[InnovateCorp] LangSmith Self-Hosted Design Document.md'
-      DOCX: '{{.OUTPUT | default (printf "%s.docx" (.INPUT | trimSuffix ".md"))}}'
+      DOCX: '{{.OUTPUT | default "deliverables/[InnovateCorp] LangSmith Self-Hosted Design Document.docx"}}'
     cmds:
       - task: docx
         vars:

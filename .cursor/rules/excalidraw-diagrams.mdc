@@ -1,12 +1,14 @@
 ---
-description: Author and revise Excalidraw scenes in plans/diagrams. Use when creating, versioning, or editing a diagram.
-globs: plans/diagrams/**/*.excalidraw
+description: Author and revise Excalidraw scenes beside the document that uses them. Use when creating, versioning, or editing a diagram.
+globs: "**/*.excalidraw"
 alwaysApply: false
 ---
 
 # Excalidraw diagrams
 
-Scenes are JSON files in `plans/diagrams/`. The `.excalidraw` file is the source. The user opens it at http://localhost:8080 and exports `.excalidraw` back over the same path.
+The `.excalidraw` file sits next to the document that embeds the picture. The design document uses `part1/langsmith-deployment.excalidraw`. The deck uses the scenes in `present/assets/`. `langsmith-deployment.excalidraw` is used in both places, so that scene is duplicated. Copy an edit onto both files before exporting. Earlier versions stay in `plans/diagrams/`.
+
+The user opens a scene at http://localhost:8080 and exports `.excalidraw` back over the same path.
 
 ```bash
 docker run -d -p 8080:80 --name my-excalidraw-instance excalidraw/excalidraw:latest
@@ -16,11 +18,9 @@ The image listens on container port 80.
 
 ## Check the picture
 
-After a create or edit, export a PNG beside the scene, read that image, and fix what it shows. Repeat until the picture is clean. The JSON stays the file to edit.
+After a create or edit, run `./scripts/export-diagrams.sh`, read the PNG, and fix what it shows. Repeat until the picture is clean. The JSON stays the file to edit.
 
-```bash
-npx @moona3k/excalidraw-export plans/diagrams/<name>.excalidraw -o plans/diagrams/<name>.png --scale 2
-```
+The script writes the PNG beside the scene. A scene in `part1/` or `present/` is also copied into `deliverables/`. A scene under `plans/` is not.
 
 The exporter draws text in the hand-drawn font, not Helvetica. Fix overlap and clipping. Do not restyle the scene to match that font.
 
