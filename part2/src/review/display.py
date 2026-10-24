@@ -150,22 +150,25 @@ def show_report(console: Console, state: dict) -> None:
 
     console.print()
     console.print("findings", style="bold")
-    findings = [
-        *(state.get("interface_findings") or []),
-        *(state.get("security_findings") or []),
-        *(state.get("release_findings") or []),
-    ]
-    visible = [
-        (str(item.get("filename") or ""), str(item.get("finding") or "").strip())
-        for item in findings
-        if str(item.get("finding") or "").strip()
-    ]
+    visible = []
+    for agent in _STEPS:
+        for item in state.get(f"{agent}_findings") or []:
+            text = str(item.get("finding") or "").strip()
+            if not text:
+                continue
+            visible.append((agent, str(item.get("filename") or ""), text))
     if not visible:
         console.print("  none", style="muted")
-    for index, (filename, text) in enumerate(visible):
+    for index, (agent, filename, text) in enumerate(visible):
         if index:
             console.print()
-        console.print(Text("  " + filename, style="bold"))
+        console.print(
+            Text.assemble(
+                ("  " + agent, "agent"),
+                ("  ", ""),
+                (filename, "bold"),
+            )
+        )
         console.print(Padding(Text(text), (0, 0, 0, 4)))
 
     console.print()

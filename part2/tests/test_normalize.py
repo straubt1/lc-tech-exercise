@@ -110,6 +110,7 @@ def test_recommend_text_asks_again_only_for_the_files_left_out():
     assert "Do not read any other file." not in again
 
     first = recommend_text(state, ["README.md"], ["file10.tf"], None)
+    assert "interface: missing variable" in first
     assert "Call read_pr_template once" in first
     assert ".github/PULL_REQUEST_TEMPLATE.md" in first
     assert "file10.tf" in first

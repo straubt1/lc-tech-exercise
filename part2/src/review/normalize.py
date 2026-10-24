@@ -172,11 +172,12 @@ def with_skipped(body: str, skipped: list[str]) -> str:
 def findings_for(state: dict, names: list[str]) -> dict[str, list[str]]:
     grouped = {name: [] for name in names}
     for key in _FINDING_KEYS:
+        agent = key.removesuffix("_findings")
         for item in state.get(key) or []:
             name = str(item.get("filename") or "").strip()
             text = str(item.get("finding") or "").strip()
             if name in grouped and text:
-                grouped[name].append(text)
+                grouped[name].append(f"{agent}: {text}")
     return grouped
 
 

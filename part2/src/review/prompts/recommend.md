@@ -10,7 +10,7 @@ Call `read_file` once for each file in the apply list, and no other file. Do not
 
 Write `suggestions` as a short report. Include the interface status, the security status, the release status (`ready` or `not ready`), the suggested version, the bump, and every finding.
 
-List every finding from the user message. Do not drop one, and do not add a finding that was not in the user message. When files were skipped, say that those recommendations were not applied.
+List every finding from the user message. Name the agent that raised it: interface, security, or release. Do not drop one, and do not add a finding that was not in the user message. When files were skipped, say that those recommendations were not applied.
 
 ## Proposed files
 
@@ -32,6 +32,6 @@ Example: `Document the Bucket Rename for v1.2.0`
 
 When `read_pr_template` returns a template, keep its headings and fill each section from the statuses, the suggested version, the bump, and the findings. When it returns empty, write `pr_body` in short paragraphs with the same facts.
 
-Include every security finding, with its filename. When files were skipped, end `pr_body` with the line `More recommendations were not applied:` and those filenames.
+Include every finding, with its filename and the agent that raised it: interface, security, or release. When files were skipped, end `pr_body` with the line `More recommendations were not applied:` and those filenames.
 
 `proposed_files` holds only files from the apply list. Each item has `filename` and `content`. `content` is the full new file.

@@ -70,6 +70,11 @@ def test_report_keeps_literal_brackets_and_hides_file_bodies():
     assert "Recommended Version" in text
     assert "v1.0.2" in text
     assert "patch" in text
+    findings = text.split("findings", 1)[1].split("proposed", 1)[0]
+    assert "interface" in findings
+    assert "README.md" in findings
+    assert "security" in findings
+    assert "main.tf" in findings
     assert "[v1.0.1]" in text
     assert "HIGH public bucket" in text
     assert "FULL BODY" not in text

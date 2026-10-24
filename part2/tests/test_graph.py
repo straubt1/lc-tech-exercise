@@ -42,7 +42,7 @@ class ScriptedModel(BaseChatModel):
         elif "security agent" in system:
             name = SECURITY_SCHEMA["title"]
             args = {"status": self.security_status, "findings": self.security_findings}
-        elif "release agent" in system:
+        elif "release specialist" in system:
             name = RELEASE_SCHEMA["title"]
             args = {
                 "status": self.release_status,
@@ -109,7 +109,7 @@ class ReleaseToolsModel(ScriptedModel):
             for message in messages
             if message.type == "system" and isinstance(message.content, str)
         )
-        if "release agent" not in system:
+        if "release specialist" not in system:
             return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
         outputs = dict(_tool_outputs(messages))
         if "get_last_release_tag" not in outputs:
@@ -259,7 +259,7 @@ def test_no_changes_is_not_ready_and_stays_on_the_tag():
                 for message in messages
                 if message.type == "system" and isinstance(message.content, str)
             )
-            if "release agent" in system:
+            if "release specialist" in system:
                 raise AssertionError("release model called")
             return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
 

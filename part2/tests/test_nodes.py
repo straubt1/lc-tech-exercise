@@ -96,7 +96,7 @@ def test_release_short_circuits_and_normalizes_the_version():
     assert result["current_version"] == "v1.0.0"
 
 
-def test_a_matching_heading_drops_an_extra_finding():
+def test_a_matching_heading_keeps_other_findings():
     reader = FixtureReader(
         tags=["v1.0.0"],
         compares={("v1.0.0", "latest"): "status: ahead\nahead_by: 1\n"},
@@ -113,8 +113,10 @@ def test_a_matching_heading_drops_an_extra_finding():
         ]
     )
     result = run_release({"repo": "acme/mod", "ref": "latest"}, agent, reader, {})
-    assert result["release_status"] == "ready"
-    assert result["release_findings"] == []
+    assert result["release_status"] == "not ready"
+    assert result["release_findings"] == [
+        {"filename": "CHANGELOG.md", "finding": "confirm the security intent"}
+    ]
     assert result["suggested_version"] == "v1.0.1"
 
 

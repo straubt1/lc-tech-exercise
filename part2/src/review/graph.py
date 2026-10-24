@@ -14,7 +14,6 @@ from review.agents.security import build as build_security
 from review.normalize import (
     apply_files,
     bump,
-    heading_is_ready,
     kept_files,
     no_changes,
     pull_version,
@@ -148,8 +147,11 @@ def run_release(state: State, agent, reader: Reader, held: dict) -> dict:
             [
                 f"Decide if {repo} at ref {ref} is ready for a release.",
                 "Call get_last_release_tag, then get_diff_since_last_release.",
-                "Read the top CHANGELOG.md heading from that tool.",
-                "When that heading is the suggested version, status is ready and findings is empty.",
+                "Read the top CHANGELOG.md heading and its unpublished notes from that tool.",
+                "Compare those notes to the diff.",
+                "When that heading is the suggested version, the heading check reports nothing.",
+                "When the diff has changes, suggested_version is the next version, not none.",
+                "The finding names that version as the new changelog heading, such as ## v1.0.2.",
                 "When bump is none, suggested_version is none.",
                 "Return status, suggested_version, bump, and findings.",
             ]
@@ -171,8 +173,6 @@ def run_release(state: State, agent, reader: Reader, held: dict) -> dict:
     label, rows = status(body, "ready", "not ready")
     suggested = version(body.get("suggested_version") or "")
     chosen = bump(body.get("bump") or "")
-    if chosen != "none" and heading_is_ready(held.get("changelog") or "", suggested, latest):
-        label, rows = "ready", []
     return released(label, rows, suggested, chosen, latest)
 
 
