@@ -62,6 +62,24 @@ def heading_is_ready(changelog: str, suggested: str, current: str) -> bool:
     return suggested_parts > current_parts
 
 
+_NOTE_MISS = ("leaves out", "leave out", "does not contain")
+
+
+def matched_heading_findings(changelog: str, suggested: str, current: str, rows: list) -> list:
+    """A heading that is already the suggested version keeps only a notes mismatch.
+
+    A pass written as a finding is dropped. A notes mismatch says `leaves out` or
+    `does not contain`.
+    """
+    if not heading_is_ready(changelog, suggested, current):
+        return rows
+    return [
+        row
+        for row in rows
+        if any(phrase in str(row.get("finding") or "").lower() for phrase in _NOTE_MISS)
+    ]
+
+
 def pull_version(state: dict) -> str:
     """Branch name uses the recommended version, or the current tag when there is no bump."""
     suggested = str(state.get("suggested_version") or "").strip()

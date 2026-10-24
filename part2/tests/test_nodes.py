@@ -96,7 +96,7 @@ def test_release_short_circuits_and_normalizes_the_version():
     assert result["current_version"] == "v1.0.0"
 
 
-def test_a_matching_heading_keeps_other_findings():
+def test_a_matching_heading_drops_a_pass_and_keeps_a_notes_mismatch():
     reader = FixtureReader(
         tags=["v1.0.0"],
         compares={("v1.0.0", "latest"): "status: ahead\nahead_by: 1\n"},
@@ -113,11 +113,30 @@ def test_a_matching_heading_keeps_other_findings():
         ]
     )
     result = run_release({"repo": "acme/mod", "ref": "latest"}, agent, reader, {})
-    assert result["release_status"] == "not ready"
-    assert result["release_findings"] == [
-        {"filename": "CHANGELOG.md", "finding": "confirm the security intent"}
-    ]
+    assert result["release_status"] == "ready"
+    assert result["release_findings"] == []
     assert result["suggested_version"] == "v1.0.1"
+
+    missed = FakeAgent(
+        [
+            {
+                "status": "ready",
+                "suggested_version": "v1.0.1",
+                "bump": "patch",
+                "findings": [
+                    {
+                        "filename": "CHANGELOG.md",
+                        "finding": "v1.0.1 leaves out the public-read ACL.",
+                    }
+                ],
+            }
+        ]
+    )
+    kept = run_release({"repo": "acme/mod", "ref": "latest"}, missed, reader, {})
+    assert kept["release_status"] == "not ready"
+    assert kept["release_findings"] == [
+        {"filename": "CHANGELOG.md", "finding": "v1.0.1 leaves out the public-read ACL."}
+    ]
 
 
 def test_a_none_bump_clears_the_suggested_version():

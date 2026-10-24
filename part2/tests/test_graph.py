@@ -36,10 +36,10 @@ class ScriptedModel(BaseChatModel):
             for message in messages
             if message.type == "system" and isinstance(message.content, str)
         )
-        if "interface agent" in system:
+        if "interface specialist" in system:
             name = INTERFACE_SCHEMA["title"]
             args = {"status": self.interface_status, "findings": self.interface_findings}
-        elif "security agent" in system:
+        elif "security specialist" in system:
             name = SECURITY_SCHEMA["title"]
             args = {"status": self.security_status, "findings": self.security_findings}
         elif "release specialist" in system:
@@ -126,6 +126,18 @@ class ReleaseToolsModel(ScriptedModel):
                     )
                 ]
             )
+        if "read_file" not in outputs:
+            return ChatResult(
+                generations=[
+                    ChatGeneration(
+                        message=_tool_message(
+                            "read_file",
+                            {"path": "CHANGELOG.md", "ref": "latest"},
+                            "changelog",
+                        )
+                    )
+                ]
+            )
         message = AIMessage(
             content="",
             tool_calls=[
@@ -140,7 +152,8 @@ class ReleaseToolsModel(ScriptedModel):
                                 "filename": "CHANGELOG.md",
                                 "finding": (
                                     f"tag {outputs['get_last_release_tag']} "
-                                    f"diff {outputs['get_diff_since_last_release']}"
+                                    f"diff {outputs['get_diff_since_last_release']} "
+                                    f"changelog {outputs['read_file']}"
                                 ),
                             }
                         ],

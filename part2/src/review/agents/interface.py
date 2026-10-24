@@ -12,5 +12,5 @@ SCHEMA = {
 }
 
 
-def build(model, tools):
-    return make(model, tools, "interface.md", SCHEMA, "interface")
+def build(model, tools, middleware=()):
+    return make(model, tools, "interface.md", SCHEMA, "interface", middleware)

@@ -22,11 +22,12 @@ def findings_schema() -> dict:
     }
 
 
-def make(model, tools, prompt: str, schema: dict, name: str):
+def make(model, tools, prompt: str, schema: dict, name: str, middleware=()):
     return create_agent(
         model=model,
         tools=tools,
         system_prompt=read_prompt(prompt),
         response_format=schema,
         name=name,
+        middleware=middleware,
     )

@@ -2,7 +2,7 @@
 
 This file is an example for writing specialist prompts. Nothing loads it. Do not pass `template.md` to `read_prompt` or `make`.
 
-`release.md` is this template filled in. Copy that shape. `recommend.md` and `groundedness.md` are different jobs and do not follow it.
+`release.md` is this template filled in. `interface.md` and `security.md` follow it as finding specialists. `recommend.md` and `groundedness.md` use Returns and Tools, then decision sections instead of Checks, because they do not emit findings.
 
 The prompt file is the system prompt the model reads. Keep author notes here. A specialist file states only that specialist's job.
 

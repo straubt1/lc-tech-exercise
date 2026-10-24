@@ -1,8 +1,25 @@
 import subprocess
 
+from langchain.agents.middleware.types import AgentMiddleware
 from langchain.tools import tool
 
 from review.reader import Reader
+
+_ALREADY = "Already returned. Use the first result and answer. Do not call this tool again."
+
+
+def absent(path: str) -> str:
+    return f"{path} does not exist at this ref. Do not call read_file again."
+
+
+def once(seen: set, path: str, text: str, clip: bool = True) -> str:
+    """Return one read. A missing file stays missing, and a repeat is not fetched again."""
+    if path in seen:
+        return _ALREADY
+    seen.add(path)
+    if str(text).startswith("not found:"):
+        return absent(path)
+    return _clip(text) if clip else text
 
 
 def run_command(argv: list[str]) -> str:
@@ -34,22 +51,65 @@ def _root(reader: Reader, ref: str) -> str:
     return path or "not found"
 
 
+class HideReadFile(AgentMiddleware):
+    """After read_file has answered, the model can no longer call it."""
+
+    tools = ()
+
+    def __init__(self, seen: set):
+        self.seen = seen
+
+    def wrap_model_call(self, request, handler):
+        return handler(request.override(tools=self._tools(request.tools)))
+
+    async def awrap_model_call(self, request, handler):
+        return await handler(request.override(tools=self._tools(request.tools)))
+
+    def _tools(self, tools):
+        if not self.seen:
+            return tools
+        return [tool for tool in tools if _tool_name(tool) != "read_file"]
+
+
 def build_interface_tools(reader: Reader, run=run_command):
     @tool
     def terraform_docs(ref: str) -> str:
-        """Generate terraform-docs markdown for one git ref.
+        """Generate terraform-docs markdown for inputs and outputs at one git ref.
 
-        Prints the docs in memory and returns the current README.md beside them.
-        Does not modify any files.
+        Does not read README.md and does not modify any files.
         """
         path = _root(reader, ref)
         if not path.startswith("/"):
             return path
-        docs = run(["terraform-docs", "markdown", "table", "--output-file", "", path])
-        readme = reader.read_file("README.md", ref)
-        return "\n".join(["generated docs", _clip(docs), "", "README.md", _clip(readme)])
+        docs = run(
+            [
+                "terraform-docs",
+                "markdown",
+                "table",
+                "--output-file",
+                "",
+                "--show",
+                "inputs",
+                "--show",
+                "outputs",
+                path,
+            ]
+        )
+        return "\n".join(["generated docs", _clip(docs)])
 
-    return [terraform_docs]
+    seen: set[str] = set()
+
+    @tool
+    def read_file(path: str, ref: str) -> str:
+        """Read README.md at one git ref. Refuses any other path.
+
+        A missing file does not exist. A second call is not fetched again.
+        """
+        if path != "README.md":
+            return "not in this run"
+        return once(seen, path, reader.read_file(path, ref))
+
+    return [terraform_docs, read_file], seen
 
 
 def build_security_tools(reader: Reader, run=run_command):
@@ -68,7 +128,40 @@ def build_security_tools(reader: Reader, run=run_command):
     return [trivy_config]
 
 
-def build_release_tools(held: dict):
+def _tool_name(tool) -> str:
+    if isinstance(tool, dict):
+        return tool.get("name") or ""
+    return getattr(tool, "name", "")
+
+
+def without_called_diff(held: dict, tools: list) -> list:
+    """Drop a release tool after it has returned once."""
+    drop = set()
+    if held.get("diff_read"):
+        drop.add("get_diff_since_last_release")
+    if held.get("read_paths"):
+        drop.add("read_file")
+    if not drop:
+        return tools
+    return [tool for tool in tools if _tool_name(tool) not in drop]
+
+
+class AnswerAfterDiff(AgentMiddleware):
+    """After the diff tool returns, the model can no longer call it."""
+
+    tools = ()
+
+    def __init__(self, held: dict):
+        self.held = held
+
+    def wrap_model_call(self, request, handler):
+        return handler(request.override(tools=without_called_diff(self.held, request.tools)))
+
+    async def awrap_model_call(self, request, handler):
+        return await handler(request.override(tools=without_called_diff(self.held, request.tools)))
+
+
+def build_release_tools(held: dict, reader: Reader | None = None):
     @tool
     def get_last_release_tag() -> str:
         """Return the latest published release tag already loaded for this run.
@@ -80,15 +173,33 @@ def build_release_tools(held: dict):
 
     @tool
     def get_diff_since_last_release() -> str:
-        """Return the diff from the latest release tag to the candidate ref, plus CHANGELOG.md.
+        """Return the diff from the latest release tag to the candidate ref.
 
-        The changelog is the file at the candidate ref, already loaded for this run.
-        An unchanged changelog is absent from the diff and is still included here.
-        Says there is no prior release when the repo has no tag.
+        Does not include CHANGELOG.md. An unchanged changelog is absent from the diff.
+        Says there is no prior release when the repo has no tag. A second call does
+        not return the diff again.
         """
+        if held.get("diff_read"):
+            return _ALREADY
+        held["diff_read"] = True
         tags = held.get("release_tags") or []
         diff = "No prior release." if not tags else (held.get("diff") or "")
-        changelog = _clip(held.get("changelog") or "")
-        return "\n".join(["diff", diff, "", "CHANGELOG.md", changelog])
+        return "\n".join(["diff", diff])
 
-    return [get_last_release_tag, get_diff_since_last_release]
+    seen = held.setdefault("read_paths", set())
+
+    @tool
+    def read_file(path: str, ref: str) -> str:
+        """Read CHANGELOG.md at one git ref. Refuses any other path.
+
+        A missing file does not exist. A second call is not fetched again.
+        """
+        if path != "CHANGELOG.md":
+            return "not in this run"
+        if reader is None:
+            text = held.get("changelog") or ""
+        else:
+            text = reader.read_file(path, ref)
+        return once(seen, path, text)
+
+    return [get_last_release_tag, get_diff_since_last_release, read_file]

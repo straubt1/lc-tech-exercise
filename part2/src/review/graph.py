@@ -15,6 +15,7 @@ from review.normalize import (
     apply_files,
     bump,
     kept_files,
+    matched_heading_findings,
     no_changes,
     pull_version,
     recommend_text,
@@ -30,6 +31,8 @@ from review.normalize import (
 from review.reader import GithubReader, Reader
 from review.state import State
 from review.tools.checks import (
+    AnswerAfterDiff,
+    HideReadFile,
     build_interface_tools,
     build_release_tools,
     build_security_tools,
@@ -80,6 +83,9 @@ def run_interface(state: State, agent) -> dict:
             [
                 f"Review the interface of {repo} at ref {ref}.",
                 f"Call terraform_docs once with ref {ref}.",
+                f"Call read_file once with path README.md and ref {ref}.",
+                "If it says README.md does not exist, do not call it again.",
+                "Compare that README with the generated inputs and outputs.",
                 "Return status and findings.",
             ]
         ),
@@ -147,11 +153,15 @@ def run_release(state: State, agent, reader: Reader, held: dict) -> dict:
             [
                 f"Decide if {repo} at ref {ref} is ready for a release.",
                 "Call get_last_release_tag, then get_diff_since_last_release.",
-                "Read the top CHANGELOG.md heading and its unpublished notes from that tool.",
+                f"Call read_file once with path CHANGELOG.md and ref {ref}.",
+                "If it says CHANGELOG.md does not exist, do not call it again.",
+                "Read the top CHANGELOG.md heading and its unpublished notes from read_file.",
                 "Compare those notes to the diff.",
-                "When that heading is the suggested version, the heading check reports nothing.",
-                "When the diff has changes, suggested_version is the next version, not none.",
-                "The finding names that version as the new changelog heading, such as ## v1.0.2.",
+                "When that heading is the suggested version, add no finding. ## 2.0.0 and ## v2.0.0 are the same heading.",
+                "When the notes describe the same changes as the diff, status is ready and findings is [].",
+                "An interface or security problem does not make the release not ready.",
+                "When the diff has changes, suggested_version is the next version after the last tag, not after the changelog heading, and not none.",
+                "A finding names the suggested version only when the heading is a different version, such as ## v1.0.2.",
                 "When bump is none, suggested_version is none.",
                 "Return status, suggested_version, bump, and findings.",
             ]
@@ -173,6 +183,11 @@ def run_release(state: State, agent, reader: Reader, held: dict) -> dict:
     label, rows = status(body, "ready", "not ready")
     suggested = version(body.get("suggested_version") or "")
     chosen = bump(body.get("bump") or "")
+    rows = matched_heading_findings(held.get("changelog") or "", suggested, latest, rows)
+    if rows:
+        label = "not ready"
+    elif chosen != "none":
+        label = "ready"
     return released(label, rows, suggested, chosen, latest)
 
 
@@ -230,9 +245,12 @@ def run_gate(state: State, answer, open_pr) -> dict:
 def build_graph(model, reader: Reader, checkpointer=_DEFAULT_SAVER, open_pr=open_pull_request):
     held: dict = {}
     allowed: dict = {"files": set()}
-    interface_agent = build_interface(model, build_interface_tools(reader))
+    interface_tools, interface_seen = build_interface_tools(reader)
+    interface_agent = build_interface(model, interface_tools, [HideReadFile(interface_seen)])
     security_agent = build_security(model, build_security_tools(reader))
-    release_agent = build_release(model, build_release_tools(held))
+    release_agent = build_release(
+        model, build_release_tools(held, reader), [AnswerAfterDiff(held)]
+    )
     recommend_agent = build_recommend(model, build_recommend_tools(reader, allowed))
 
     def check(state: State) -> dict:

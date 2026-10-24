@@ -14,5 +14,5 @@ SCHEMA = {
 }
 
 
-def build(model, tools):
-    return make(model, tools, "release.md", SCHEMA, "release")
+def build(model, tools, middleware=()):
+    return make(model, tools, "release.md", SCHEMA, "release", middleware)

@@ -9,6 +9,7 @@ import urllib.request
 from langchain.tools import tool
 
 from review.reader import Reader
+from review.tools.checks import _ALREADY, absent
 
 _API = "https://api.github.com"
 _SUFFIX_ALPHABET = string.ascii_lowercase + string.digits
@@ -66,6 +67,7 @@ def build_listing_tools(reader: Reader):
 
 def build_recommend_tools(reader: Reader, allowed: dict | None = None):
     scope = allowed if allowed is not None else {"files": set()}
+    missing = scope.setdefault("missing", set())
 
     @tool
     def read_pr_template(paths: list[str], ref: str) -> str:
@@ -83,10 +85,19 @@ def build_recommend_tools(reader: Reader, allowed: dict | None = None):
 
     @tool
     def read_file(path: str, ref: str) -> str:
-        """Read one file named by a finding. Refuses any other path."""
+        """Read one file named by a finding. Refuses any other path.
+
+        A missing file does not exist. A second call for that path is not fetched again.
+        """
         if path not in scope["files"]:
             return "not in this run"
-        return reader.read_file(path, ref)
+        if path in missing:
+            return _ALREADY
+        text = reader.read_file(path, ref)
+        if text.startswith("not found:"):
+            missing.add(path)
+            return absent(path)
+        return text
 
     return [read_pr_template, read_file]
 
