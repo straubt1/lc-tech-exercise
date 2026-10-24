@@ -40,10 +40,6 @@ def model_name() -> str:
     return name
 
 
-def experiment_prefix(name: str) -> str:
-    return f"{DATASET}-{name}"
-
-
 def fixture_from_inputs(inputs: dict) -> FixtureReader:
     files = {}
     for ref, paths in (inputs.get("files") or {}).items():
@@ -348,7 +344,8 @@ def run_evaluation():
         evaluators=[*EVALUATORS],
         # evaluators=[*EVALUATORS, finding_groundedness],
         summary_evaluators=[decisions_passed],
-        experiment_prefix=experiment_prefix(model_name()),
+        experiment_prefix=DATASET,
+        metadata={"models": model_name()},
         max_concurrency=1,
         client=client,
     )

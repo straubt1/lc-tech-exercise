@@ -5,7 +5,6 @@ from review.evals import (
     agent_tag_id,
     decisions_passed,
     example_id,
-    experiment_prefix,
     finding_files,
     finding_groundedness,
     interface_status,
@@ -197,12 +196,6 @@ def test_sync_tags_a_new_dataset(monkeypatch):
     assert client.created == ("tf-module-review", ["tag-1"])
     assert client.description == "Frozen modules."
     assert not any(call[0] == "POST" for call in client.calls)
-
-
-def test_experiment_prefix_includes_the_model():
-    assert experiment_prefix("anthropic:claude-haiku-5-5") == (
-        "tf-module-review-anthropic:claude-haiku-5-5"
-    )
 
 
 def test_example_id_follows_the_scenario_name():

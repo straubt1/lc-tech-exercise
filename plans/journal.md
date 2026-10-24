@@ -4,13 +4,12 @@
 
 - Which MODEL and why
 - Why THESE agents
-- 
-
 
 ## Friction
 
 - Limiting number of tool calls (read_file recursion early was a problem)
 - As well as token budget to stop things
+- Single model throughout, could target specialty agents towards a model better suited for their tasks
 
 ## Testing
 

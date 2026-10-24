@@ -599,20 +599,24 @@
             <h2>Evaluation Results</h2>
             <div class="cards">
               <article class="card">
-                <h3>The set</h3>
+                <h3>Datasets</h3>
                 <p>Seven frozen modules.</p>
                 <br>
-                <p>The agents call the same tools and receive canned files and diffs.</p>
-              </article>
-              <article class="card">
-                <h3>The bar</h3>
-                <p>Five scores, each pass or fail.</p>
+                <p>Repeatable scenarios.</p>
                 <br>
-                <p>A scenario counts only when all five pass.</p>
+                <p>Live data loop from real runs.</p>
               </article>
               <article class="card">
-                <h3>The cost</h3>
-                <p>Median time and tokens for each agent, read off the latest experiment.</p>
+                <h3>Evaluators</h3>
+                <p>5 scores from the Code Evaluator.</p>
+                <br>
+                <p>LLM as a Judge.</p>
+              </article>
+              <article class="card">
+                <h3>Experiments</h3>
+                <p>Prompt tuning and agent architecture changes.</p>
+                <br>
+                <p>Becomes a valuable development loop.</p>
               </article>
             </div>
           </div>
@@ -629,23 +633,25 @@
             <div class="cards">
               <article class="card">
                 <h3>Self-service</h3>
-                <p>The module is the interface teams use to build infrastructure.</p>
+                <p>The module docs are how teams learn to build infrastructure.</p>
                 <br>
-                <p>Clear variables and usable settings are what let that scale.</p>
+                <p>Clear module interfaces are what let that scale.</p>
                 <br>
-                <p>Interface gaps become edits on the next release.</p>
+                <p>Mistakes in the module docs become tickets on the next release.</p>
               </article>
               <article class="card">
                 <h3>The right bump</h3>
-                <p>Major, minor, and patch are applied inconsistently</p>
+                <p>Major, minor, and patch are applied consistently</p>
                 <br>
                 <p>Every candidate gets the same recommendation from the org rule, before the tag.</p>
               </article>
               <article class="card">
-                <h3>Caught in development</h3>
-                <p>The same checks run on every upcoming release.</p>
+                <h3>Flexibility and Scale</h3>
+                <p>Recommendations can expand and improve over time.</p>
                 <br>
-                <p>A person approves the pull request. Consumers do not find the miss.</p>
+                <p>Consistent recommendations across a large organization.</p>
+                <br>
+                <p>Human in the Loop gives teams a chance to engage with the recommendation.</p>
               </article>
             </div>
           </div>
@@ -683,10 +689,11 @@
           <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
           <div class="slide-main">
             <p class="kicker">Friction</p>
-            <h2>What got in the way</h2>
+            <h2>Lessons Learned</h2>
             <ul class="points">
-              <li>The eval stops at the human gate, so the pull request is never scored.</li>
-              <li>One drifted row fails the suite. The previous experiment is another view.</li>
+              <li>The eval stops at the human gate so the pull request is never scored.</li>
+              <li>Agent development mistakes cost tokens and time.</li>
+              <li>Starting with Evaluations and Experiments would have been better.</li>
             </ul>
           </div>
           <aside class="notes">
@@ -700,9 +707,9 @@
             <p class="kicker">Friction</p>
             <h2>What we would ask for</h2>
             <ul class="points">
-              <li>Let a dataset example carry a scripted yes or no for the interrupt.</li>
-              <li>A scorer that checks the required tool calls, not only the final fields.</li>
-              <li>A score for the rewritten file against the finding it was meant to fix.</li>
+              <li>Ability to set max tokens and interrupt.</li>
+              <li>Automatically stop tool calls when you get the same result twice (same input).</li>
+              <li>Template syntax for User Prompts.</li>
             </ul>
           </div>
           <aside class="notes">
