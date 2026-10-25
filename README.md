@@ -39,7 +39,3 @@ The review system is in `src/review/`.
 The stakeholder presentation, built with [Reveal.js](https://revealjs.com/).
 
 `index.html` is the deck. Diagram scenes live in `assets/` next to the pictures the slides use: `langsmith-deployment.excalidraw` and `module-review-v4.excalidraw`. Lockups are the SVG files in that same folder. Exporting the deck writes `deliverables/presentation.pdf`.
-
-## plans
-
-Working notes and earlier diagram versions. The finished assets are in `deliverables/`.

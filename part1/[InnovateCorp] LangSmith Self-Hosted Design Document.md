@@ -1,6 +1,6 @@
 ## Purpose
 
-This document defines the infrastructure architecture for InnovateCorp's self-hosted LangSmith platform on Google Cloud. It states the capabilities in scope for the initial deployment, the infrastructure required to run them, and the conditions under which that infrastructure is scaled. It is written for technical review and approval.
+This document defines the infrastructure architecture for InnovateCorp's self-hosted LangSmith platform on Google Cloud. The deployment installs Helm chart 0.17.25, which deploys LangSmith application 0.17.53. It states the capabilities in scope for the initial deployment, the infrastructure required to run them, and the conditions under which that infrastructure is scaled. It is written for technical review and approval.
 
 ## Changelog
 
@@ -12,7 +12,7 @@ This document defines the infrastructure architecture for InnovateCorp's self-ho
 
 ## LangSmith Platform
 
-Self-hosted LangSmith runs the LangSmith platform in your own infrastructure so that trace and operational data stay in your environment. The base installation includes observability, evaluation, prompt engineering, Insights, and Chat.
+Self-hosted LangSmith runs the LangSmith platform in your own infrastructure so that trace and operational data stay in your environment. This design installs Helm chart 0.17.25. The base installation includes observability, evaluation, prompt engineering, Insights, and Chat.
 
 ### Considerations
 
@@ -22,7 +22,7 @@ Agent workloads remain on the existing infrastructure and submit traces to this 
 
 The installation is a production deployment. Durable data is held in managed services outside the cluster. Those services are configured for high availability, and recovery from a regional failure is part of the design.
 
-Staff sign in through InnovateCorp's OIDC provider. Agents authenticate with API keys. A local administrator account is used to complete the first login, and remains available for emergency access after OIDC is enabled. The API key salt is generated once during installation. It is not rotated, because a change would invalidate every existing API key.
+Staff sign in through InnovateCorp's OIDC provider, and agents authenticate with API keys.
 
 The initial deployment delivers the capabilities of a standard LangSmith installation:
 
@@ -32,7 +32,7 @@ The initial deployment delivers the capabilities of a standard LangSmith install
 - **Chat.** Assistance for working with data already held in LangSmith.
 
 
-Chat is part of that standard installation. It runs on the same cluster. It uses a database on the platform PostgreSQL 18 instance and a logical database on the existing Memorystore instance. It requires access to a model provider.
+Chat is part of that standard installation. It runs on the same cluster. It uses a database on the platform PostgreSQL 18 instance and a logical database on the Redis instance.
 
 #### Future Considerations
 
@@ -46,7 +46,7 @@ The additional infrastructure is:
 - A default StorageClass backed by the GCE persistent disk provisioner, for volumes those agent servers request.
 
 
-The Cloud SQL instance deployed for the initial phase also holds short-term and long-term memory for the hosted agents. Memorystore and the Cloud Storage buckets deployed for the initial phase continue to serve this feature.
+The Cloud SQL instance deployed for the initial phase also holds short-term and long-term memory for the hosted agents. Redis and the Cloud Storage buckets deployed for the initial phase continue to serve this feature.
 
 \pagebreak
 
@@ -61,17 +61,17 @@ The platform uses `us-west2` as its primary region. A dedicated VPC in that regi
 | GKE Standard cluster | Runs the LangSmith platform on private nodes, separate from InnovateCorp's existing clusters. Autopilot is not used, because the trace store requires dedicated node pools. |
 | Envoy Gateway | Publishes the LangSmith interface and API. It is the only entry point into the cluster. |
 | General node pool | Runs the stateless platform services: the interface, the product APIs, the ingest workers, the playground, the runtime for custom evaluations, and Chat. |
-| SmithDB cache node pool | Runs the trace store processes that accept writes and serve reads. Local SSD on these nodes holds a cache for the pod that is using it. |
-| SmithDB compute node pool | Runs background maintenance for the trace store, including compaction and coordination across the cache pods. |
+| SmithDB cache node pool | Runs query, ingestion, and the compaction workers. Local SSD on these nodes is the cache those pods mount. |
+| SmithDB compute node pool | Runs the compaction scheduler and the cluster manager. These pods coordinate maintenance and do not mount the trace cache. |
 | Cloud SQL, PostgreSQL 18 | Platform database. Stores organizations, users, projects, API keys, datasets, experiments, and the Chat database. |
 | Cloud SQL, PostgreSQL 18 | SmithDB metastore. Stores the catalog that records where trace data has been written. This instance is separate from the platform database. |
-| Memorystore for Redis | Holds the ingest queue, the short-lived cache used by the platform, and Chat's queue data. |
+| Redis | Holds the ingest queue, the short-lived cache used by the platform, and Chat's queue data. |
 | SmithDB GCS bucket | Holds the durable copy of traces and feedback. Retention is applied by compaction. Objects in this bucket are not expired by a storage lifecycle rule. |
 | Blob GCS bucket | Holds large payloads and attachments in a multi-region `us` bucket. Short-lived objects expire after 14 days, and long-lived objects expire after 400 days. |
 
-Cloud SQL and Memorystore use private addresses on the VPC. Nodes reach Cloud Storage through Private Google Access. Pods authenticate to Cloud Storage with Workload Identity.
+Cloud SQL and Redis use private addresses on the VPC. Nodes reach Cloud Storage through Private Google Access. Pods authenticate to Cloud Storage with Workload Identity.
 
-Both Cloud SQL instances run PostgreSQL 18, the newest major version Cloud SQL offers, and both are configured for regional high availability. Memorystore is configured for Standard high availability. The metastore stays on its own instance because SmithDB requires an empty database, separate from the platform database. Recovery from a loss of the region is a restore from backup in `us-west2`. Trace durability depends on the SmithDB object bucket and the metastore backup. The local disk used by SmithDB is a cache and is rebuilt when a pod reads data again.
+Both Cloud SQL instances run PostgreSQL 18, the newest major version Cloud SQL offers, and both are configured for regional high availability. Redis is configured for Standard high availability. The metastore stays on its own instance because SmithDB requires an empty database, separate from the platform database. Recovery from a loss of the region is a restore from backup in `us-west2`. Trace durability depends on the SmithDB object bucket and the metastore backup. The local disk used by SmithDB is a cache and is rebuilt when a pod reads data again.
 
 \pagebreak
 
@@ -96,12 +96,14 @@ Stateless application services scale when CPU utilization reaches 50 percent or 
 
 Published scale guidance for this same workload recommends 16 backend replicas and 6 ingest-queue replicas. The initial production size limits the backend service to 10 replicas. Sustained operation at that limit, or a persistent ingest backlog, is the condition for moving to the larger production size.
 
-SmithDB ingestion, query, and the compaction worker scale independently, up to 10 replicas. The compaction scheduler and the cluster manager remain a single replica. Their machine size changes when the installation moves to the large configuration.
+Query, ingestion, and the compaction workers run on the cache pool and scale independently, up to 10 replicas. A medium compaction worker requests 16 CPU, 32 GB of memory, and 100 GB of cache. A large worker requests 28 CPU, 50 GB of memory, and 300 GB of cache. The cache nodes below have the CPU and the local SSD for those requests.
+
+The compaction scheduler and the cluster manager run on the compute pool and stay at one replica. The scheduler requests 4 CPU and 8 GB at the medium size, and 8 CPU and 16 GB at the large size. The cluster manager requests a fraction of one CPU at medium and 2 CPU at large. The compute pool stays at the module default for those two pods: `n2-standard-8` for the initial deployment and `n2-standard-16` at the larger production size.
 
 | SmithDB component | Initial deployment, medium | Larger production size |
 | --- | --- | --- |
-| query, ingestion, compaction worker | 1, 1, and 1 | 4, 2, and 4 |
-| compaction scheduler and cluster manager | 1 and 1, with no autoscaler | 1 and 1, on a larger machine |
+| query, ingestion, compaction worker | 1, 1, and 1, on the cache pool | 4, 2, and 4, on the cache pool |
+| compaction scheduler and cluster manager | 1 and 1, on the compute pool, with no autoscaler | 1 and 1, on the compute pool, with no autoscaler |
 | Cache nodes | `n2-standard-32` (32 vCPU, 128 GB), 4 local SSDs, up to 3 nodes per zone | `n2-standard-64` (64 vCPU, 256 GB), 8 local SSDs, up to 3 nodes per zone |
 | Compute nodes | `n2-standard-8` (8 vCPU, 32 GB), up to 3 nodes per zone | `n2-standard-16` (16 vCPU, 64 GB), up to 3 nodes per zone |
 | Metastore | `db-custom-6-32768` (6 vCPU, 32 GB), 50 GB disk floor | `db-custom-10-65536` (10 vCPU, 64 GB) |
@@ -111,7 +113,7 @@ The general node pool uses `e2-standard-4` (4 vCPU, 16 GB). It starts at 2 nodes
 | Store | Initial deployment | Later growth |
 | --- | --- | --- |
 | Platform Cloud SQL | `db-custom-2-8192` (2 vCPU, 8 GB), 50 GB, regional high availability | Remains at this machine size as trace volume grows. Disk may increase as metadata accumulates. |
-| Memorystore | 13 GB, Standard high availability | Increases to 26 GB as ingest approaches 1,000 traces per second. The 5 GB default applies to low write rates and is not used for this deployment. |
+| Redis | 13 GB, Standard high availability | Increases to 26 GB as ingest approaches 1,000 traces per second. |
 | SmithDB bucket | Single region, with no object expiry | Grows with the volume of traces retained. Compaction reclaims data that has passed its retention period. |
 | Blob bucket | Multi-region `us`, with expiry at 14 days and 400 days | Grows with payload size, then lifecycle rules remove expired objects. |
 | SmithDB local SSD | Cache on the cache-pool nodes | Rebuilt from the SmithDB bucket after a pod is replaced. It is not part of the backup. |
@@ -133,7 +135,8 @@ These questions came up while preparing this design. They should be answered bef
 3. [Configure SmithDB for scale](https://docs.langchain.com/langsmith/self-host-smithdb-scale)
 4. [Terraform Module - GCP](https://github.com/langchain-ai/terraform/tree/v0.17.14/modules/gcp)
 5. [Deploy LangSmith on GCP with Terraform](https://docs.langchain.com/langsmith/self-host-terraform-gcp-deploy)
-6. [LangSmith Helm chart](https://github.com/langchain-ai/helm/tree/main/charts/langsmith)
+6. [LangSmith Helm chart 0.17.25](https://github.com/langchain-ai/helm/releases/tag/langsmith-0.17.25)
+7. [Prepare SmithDB supporting infrastructure](https://docs.langchain.com/langsmith/self-host-smithdb-infrastructure)
 
 
 +++config
@@ -167,8 +170,8 @@ theme {
     callout_caution      = "#CF222E"
   }
   fonts = {
-    heading = "Helvetica Neue"
-    body    = "Helvetica Neue"
+    heading = "TWK Lausanne"
+    body    = "TWK Lausanne"
     mono    = "Menlo"
   }
 }

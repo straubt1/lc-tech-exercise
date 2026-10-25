@@ -222,3 +222,5 @@ __marimo__/
 terraform-aws-object-storage/
 .langgraph_api/
 .~lock.*
+
+/plan

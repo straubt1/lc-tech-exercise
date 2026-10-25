@@ -23,7 +23,7 @@ if [[ $# -eq 0 ]]; then
   scenes=(
     "$left"
     "$right"
-    "present/assets/module-review-v4.excalidraw"
+    "present/assets/module-review-v5.excalidraw"
   )
 else
   scenes=("$@")
