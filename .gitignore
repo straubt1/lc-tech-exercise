@@ -224,3 +224,4 @@ terraform-aws-object-storage/
 .~lock.*
 
 /plan
+demo/raw.mp4

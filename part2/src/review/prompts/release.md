@@ -54,11 +54,11 @@ Set `bump` and `suggested_version` before the checks. This decision is not a fin
 
 When the diff has no changes, `bump` is `none` and `suggested_version` is `none`. The current tag is not a suggested version. `none` is only for a diff with no changes.
 
-When the diff has changes, `bump` is the highest that applies:
+When the diff has changes, `bump` is the highest that applies (if unsure, do major):
 
-- `major`: a removed, renamed, or retyped variable or output, or a new variable with no default.
-- `minor`: a new optional variable or a new output, and nothing above applies.
-- `patch`: every other change. A resource edit with the same variables and outputs is a patch, including a new resource.
+- `major`: a removed, renamed, or retyped required variable or output, or a new variable with no default. a recreate needed for a primary resource.
+- `minor`: a new optional variable or a new output, and nothing above applies. 
+- `patch`: A resource edit with the same variables and outputs is a patch, including a new resource.
 
 `suggested_version` is the next number after the last tag, not after the changelog heading. A major bump raises the first number and resets the rest. A minor bump raises the second. A patch bump raises the third. Last tag `v1.0.0` and a patch is `v1.0.1`. A changelog that already says `## 1.0.1` is that version. Do not suggest `v1.0.2`.
 

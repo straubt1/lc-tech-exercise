@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Demo slides</title>
+  <style>
+    :root {
+      --bg: #f2faff;
+      --ink: #030710;
+      --muted: rgba(3, 7, 16, 0.62);
+      --blue: #7fc8ff;
+      --blue-deep: #006ddd;
+    }
+
+    @font-face {
+      font-family: "TWK Lausanne";
+      src: url("https://docs.langchain.com/fonts/TWKLausanne-300.woff2") format("woff2");
+      font-weight: 300;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "TWK Lausanne", Tahoma, sans-serif;
+      font-weight: 300;
+      font-synthesis: none;
+    }
+
+    .slide {
+      display: none;
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 7vh 10vh 6.5vh;
+    }
+
+    #open:target,
+    #close:target,
+    html:not(:has(:target)) #open {
+      display: flex;
+    }
+
+    .logo {
+      display: block;
+      width: 26vh;
+      height: auto;
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .kicker {
+      margin: 0 0 2.4vh;
+      color: var(--blue-deep);
+      font-size: 5.5vh;
+      letter-spacing: -0.02em;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 18em;
+      font-size: 10vh;
+      font-weight: 300;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+    }
+
+    .lede {
+      margin: 2.4vh 0 0;
+      max-width: 28em;
+      color: var(--muted);
+      font-size: 3.3vh;
+    }
+
+    .links {
+      margin: 5vh 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .links li + li {
+      margin-top: 2.2vh;
+    }
+
+    .links a {
+      color: var(--blue-deep);
+      font-size: 3vh;
+      text-decoration: none;
+    }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      gap: 3.8vh;
+      margin: 0;
+      color: var(--muted);
+      font-size: 2.2vh;
+    }
+
+    .meta span + span::before {
+      content: "";
+      display: inline-block;
+      width: 0.55vh;
+      height: 0.55vh;
+      margin-right: 3.8vh;
+      border-radius: 50%;
+      background: var(--blue);
+      vertical-align: middle;
+    }
+
+    .arcs {
+      position: absolute;
+      right: -16vh;
+      bottom: -22vh;
+      width: 89vh;
+      height: 89vh;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <section class="slide" id="open">
+    <img class="logo" src="../present/assets/langchain-lockup-black.svg" alt="LangChain">
+    <div class="main">
+      <p class="kicker">Demo</p>
+      <h1>Terraform Module Review Agent</h1>
+      <p class="lede">Specialized agents review Terraform modules.</p>
+    </div>
+    <p class="meta">
+      <span>Tom Straub</span>
+      <span>Architect</span>
+      <span>October 2026</span>
+    </p>
+    <svg class="arcs" viewBox="0 0 560 560" fill="none" aria-hidden="true">
+      <path d="M48 520C210 520 340 390 340 228" stroke="#7fc8ff" stroke-width="1.25" stroke-dasharray="1.5 7"/>
+      <path d="M48 520C250 520 392 378 392 176" stroke="#7fc8ff" stroke-width="1.25"/>
+      <path d="M48 520C292 520 448 364 448 120" stroke="#006ddd" stroke-width="1.25" opacity="0.55"/>
+      <path d="M48 520C334 520 504 350 504 64" stroke="#7fc8ff" stroke-width="1.25" stroke-dasharray="1.5 6"/>
+      <circle cx="48" cy="520" r="3.5" fill="#006ddd"/>
+    </svg>
+  </section>
+
+  <section class="slide" id="close">
+    <img class="logo" src="../present/assets/langchain-lockup-black.svg" alt="LangChain">
+    <div class="main">
+      <h1>Thank you</h1>
+      <ul class="links">
+        <li><a href="https://github.com/straubt1/lc-tech-exercise/tree/main">github.com/straubt1/lc-tech-exercise</a></li>
+        <li><a href="https://github.com/straubt1/terraform-aws-object-storage">github.com/straubt1/terraform-aws-object-storage</a></li>
+      </ul>
+    </div>
+    <p class="meta">
+      <span>Tom Straub</span>
+      <span>Architect</span>
+      <span>October 2026</span>
+    </p>
+    <svg class="arcs" viewBox="0 0 560 560" fill="none" aria-hidden="true">
+      <path d="M48 520C210 520 340 390 340 228" stroke="#7fc8ff" stroke-width="1.25" stroke-dasharray="1.5 7"/>
+      <path d="M48 520C250 520 392 378 392 176" stroke="#7fc8ff" stroke-width="1.25"/>
+      <path d="M48 520C292 520 448 364 448 120" stroke="#006ddd" stroke-width="1.25" opacity="0.55"/>
+      <path d="M48 520C334 520 504 350 504 64" stroke="#7fc8ff" stroke-width="1.25" stroke-dasharray="1.5 6"/>
+      <circle cx="48" cy="520" r="3.5" fill="#006ddd"/>
+    </svg>
+  </section>
+</body>
+</html>
