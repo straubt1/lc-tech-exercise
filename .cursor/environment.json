@@ -1,0 +1,11 @@
+{
+  "name": "lc-tech-exercise",
+  "user": "ubuntu",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "install": "bash .cursor/scripts/install-check.sh",
+  "start": "bash .cursor/scripts/start-ministack.sh",
+  "terminals": []
+}

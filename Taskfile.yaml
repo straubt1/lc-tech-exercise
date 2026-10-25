@@ -1,0 +1,120 @@
+version: "3"
+
+vars:
+  IMAGE: module-review
+
+tasks:
+  agent:build:
+    desc: Build the local review image
+    dir: part2
+    cmds:
+      - docker build -t {{.IMAGE}} .
+
+  agent:run:
+    desc: Review with .env. Set GITHUB_REPO, GITHUB_CANDIDATE_REF, or TRIVY_SEVERITY to override.
+    dir: part2
+    interactive: true
+    cmds:
+      - |
+        docker run --rm -it --env-file .env \
+          {{.IMAGE}}
+
+  agent:run:object-storage:
+    desc: Review straubt1/terraform-aws-object-storage at latest
+    interactive: true
+    cmds:
+      - task: run
+        vars:
+          GITHUB_REPO: straubt1/terraform-aws-object-storage
+          GITHUB_CANDIDATE_REF: latest
+
+  agent:run:variable:
+    desc: Review straubt1/terraform-aws-object-storage at latest-variable
+    interactive: true
+    cmds:
+      - task: run
+        vars:
+          GITHUB_REPO: straubt1/terraform-aws-object-storage
+          GITHUB_CANDIDATE_REF: latest-variable
+
+  agent:run:project-factory:
+    desc: Review terraform-google-modules/terraform-google-project-factory at main
+    interactive: true
+    cmds:
+      - task: run
+        vars:
+          GITHUB_REPO: terraform-google-modules/terraform-google-project-factory
+          GITHUB_CANDIDATE_REF: main
+
+  agent:test:
+    desc: Run the unit tests, skipping the live LangSmith experiment
+    dir: part2
+    cmds:
+      - uv run pytest -q -k "not langsmith"
+
+  expirement:create:
+    desc: Run the current agent over the dataset and create a LangSmith experiment
+    dir: part2
+    cmds:
+      - uv run python -c 'from review.evals import run_evaluation; run_evaluation()'
+
+  agent:test:tools:
+    desc: Run the tool tests
+    dir: part2
+    cmds:
+      - uv run pytest -q tests/test_checks.py tests/test_reader.py
+
+  present:
+    desc: Serve the slide deck at http://langchain-presentation.arcbox.local/
+    cmds:
+      - docker build -t langchain-presentation present
+      - docker rm -f langchain-presentation >/dev/null 2>&1 || true
+      - docker run -d --name langchain-presentation --mount type=bind,src={{.ROOT_DIR}}/present,dst=/site langchain-presentation
+
+  present:pdf:
+    desc: Export the reveal.js deck to deliverables/presentation.pdf
+    cmds:
+      - ./scripts/export-pdf.sh {{.CLI_ARGS}}
+
+  diagrams:
+    desc: Export each diagram PNG beside its scene and into deliverables/
+    cmds:
+      - ./scripts/export-diagrams.sh
+
+  docx:
+    desc: Convert the LangSmith design document to Word in deliverables/ and open it
+    summary: |
+      markdown-to-docx is a home-grown utility. Other people are unlikely to have it installed.
+    vars:
+      INPUT: 'part1/[InnovateCorp] LangSmith Self-Hosted Design Document.md'
+      OUT: '{{.OUTPUT | default "deliverables/[InnovateCorp] LangSmith Self-Hosted Design Document.docx"}}'
+      OPEN: '{{.OPEN | default "true"}}'
+    cmds:
+      - mkdir -p "{{.ROOT_DIR}}/deliverables"
+      - markdown-to-docx convert
+          --input "{{.ROOT_DIR}}/{{.INPUT}}"
+          --output "{{.ROOT_DIR}}/{{.OUT}}"
+          --verbose
+      - cmd: open "{{.ROOT_DIR}}/{{.OUT}}"
+        if: '[ "{{.OPEN}}" = "true" ]'
+
+  docx:pdf:
+    desc: Build the Word document, then write the PDF beside it in deliverables/
+    vars:
+      INPUT: 'part1/[InnovateCorp] LangSmith Self-Hosted Design Document.md'
+      DOCX: '{{.OUTPUT | default "deliverables/[InnovateCorp] LangSmith Self-Hosted Design Document.docx"}}'
+    cmds:
+      - task: docx
+        vars:
+          INPUT: '{{.INPUT}}'
+          OUTPUT: '{{.DOCX}}'
+          OPEN: "false"
+      - |
+        soffice="/Applications/LibreOffice.app/Contents/MacOS/soffice"
+        docx="{{.ROOT_DIR}}/{{.DOCX}}"
+        outdir="$(dirname "$docx")"
+        base="$(basename "$docx" .docx)"
+        tmp="$(mktemp -d)"
+        "$soffice" --headless --convert-to pdf --outdir "$tmp" "$docx"
+        mv -f "$tmp/$base.pdf" "$outdir/$base.pdf"
+        rmdir "$tmp"

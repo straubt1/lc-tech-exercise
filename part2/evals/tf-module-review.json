@@ -1,0 +1,233 @@
+{
+  "examples": [
+    {
+      "inputs": {
+        "id": "docs-match",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": [
+          "v1.0.0"
+        ],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\nversion 1.0.0\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## 1.0.0\n\n- Initial bucket module.\n"
+          }
+        },
+        "compares": {
+          "v1.0.0...latest": "status: identical\nahead_by: 0\nno changes"
+        }
+      },
+      "outputs": {
+        "interface_status": "pass",
+        "security_status": "pass",
+        "release_status": "not ready",
+        "suggested_version": "none",
+        "finding_files": [
+          "CHANGELOG.md"
+        ]
+      },
+      "metadata": {
+        "decision": "No diff since the last tag, so there is nothing new to release."
+      }
+    },
+    {
+      "inputs": {
+        "id": "optional-variable-stale-readme",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": [
+          "v1.0.0"
+        ],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n\nvariable \"force_destroy\" {\n  description = \"Destroy the bucket even when it has objects.\"\n  type        = bool\n  default     = false\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## Unreleased\n\n- Add optional force_destroy. It has a default of false.\n\n## 1.0.0\n\n- Initial bucket module.\n"
+          }
+        },
+        "compares": {
+          "v1.0.0...latest": "status: ahead\nahead_by: 1\nfiles:\n- variables.tf (modified)\n\n--- variables.tf\n+variable \"force_destroy\" {\n+  description = \"Destroy the bucket even when it has objects.\"\n+  type        = bool\n+  default     = false\n+}\n"
+        }
+      },
+      "outputs": {
+        "interface_status": "fail",
+        "security_status": "pass",
+        "release_status": "not ready",
+        "suggested_version": "v1.1.0",
+        "finding_files": [
+          "README.md",
+          "CHANGELOG.md"
+        ]
+      },
+      "metadata": {
+        "decision": "New optional variable. README omits it. Changelog is Unreleased."
+      }
+    },
+    {
+      "inputs": {
+        "id": "required-variable-documented",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": [
+          "v1.0.0"
+        ],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n\nvariable \"kms_key_id\" {\n  description = \"KMS key ARN.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n- kms_key_id (string, required): KMS key ARN.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## 2.0.0\n\n- Add required kms_key_id. Configurations that omit it cannot apply.\n\n## 1.0.0\n\n- Initial bucket module.\n"
+          }
+        },
+        "compares": {
+          "v1.0.0...latest": "status: ahead\nahead_by: 1\nfiles:\n- variables.tf (modified)\n\n--- variables.tf\n+variable \"kms_key_id\" {\n+  description = \"KMS key ARN.\"\n+  type        = string\n+}\n"
+        }
+      },
+      "outputs": {
+        "interface_status": "pass",
+        "security_status": "pass",
+        "release_status": "ready",
+        "suggested_version": "v2.0.0",
+        "finding_files": []
+      },
+      "metadata": {
+        "decision": "New required variable. README and changelog already match a major bump."
+      }
+    },
+    {
+      "inputs": {
+        "id": "output-renamed",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": [
+          "v1.0.0"
+        ],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_arn\" {\n  description = \"ARN of the bucket.\"\n  value       = aws_s3_bucket.this.arn\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## 2.0.0\n\n- Rename output bucket_id to bucket_arn.\n\n## 1.0.0\n\n- Initial bucket module.\n"
+          }
+        },
+        "compares": {
+          "v1.0.0...latest": "status: ahead\nahead_by: 1\nfiles:\n- outputs.tf (modified)\n\n--- outputs.tf\n-output \"bucket_id\" {\n-  description = \"ID of the bucket.\"\n+output \"bucket_arn\" {\n+  description = \"ARN of the bucket.\"\n"
+        }
+      },
+      "outputs": {
+        "interface_status": "fail",
+        "security_status": "pass",
+        "release_status": "ready",
+        "suggested_version": "v2.0.0",
+        "finding_files": [
+          "README.md"
+        ]
+      },
+      "metadata": {
+        "decision": "Output renamed. README still lists the old name. Changelog is ready."
+      }
+    },
+    {
+      "inputs": {
+        "id": "changelog-misses-fix",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": [
+          "v1.0.0"
+        ],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## 1.0.0\n\n- Initial bucket module.\n",
+            "main.tf": "resource \"aws_kms_key\" \"this\" {\n  description             = \"Encrypts objects in the bucket.\"\n  deletion_window_in_days = 7\n  enable_key_rotation     = true\n}\n\nresource \"aws_s3_bucket\" \"this\" {\n  bucket = var.bucket_name\n}\n\nresource \"aws_s3_bucket_public_access_block\" \"this\" {\n  bucket                  = aws_s3_bucket.this.id\n  block_public_acls       = true\n  block_public_policy     = true\n  ignore_public_acls      = true\n  restrict_public_buckets = true\n}\n\nresource \"aws_s3_bucket_server_side_encryption_configuration\" \"this\" {\n  bucket = aws_s3_bucket.this.id\n  rule {\n    apply_server_side_encryption_by_default {\n      kms_master_key_id = aws_kms_key.this.arn\n      sse_algorithm     = \"aws:kms\"\n    }\n    bucket_key_enabled = true\n  }\n}\n\nresource \"aws_s3_bucket_versioning\" \"this\" {\n  bucket = aws_s3_bucket.this.id\n  versioning_configuration {\n    status = \"Enabled\"\n  }\n}\n"
+          }
+        },
+        "compares": {
+          "v1.0.0...latest": "status: ahead\nahead_by: 1\nfiles:\n- main.tf (modified)\n\n--- main.tf\n-resource \"aws_s3_bucket\" \"this\" {\n-  bucket = var.bucket_name\n-}\n+resource \"aws_s3_bucket_versioning\" \"this\" {\n+  bucket = aws_s3_bucket.this.id\n+  versioning_configuration {\n+    status = \"Enabled\"\n+  }\n+}\nThe variable and output contract is unchanged.\n"
+        }
+      },
+      "outputs": {
+        "interface_status": "pass",
+        "security_status": "pass",
+        "release_status": "not ready",
+        "suggested_version": "v1.0.1",
+        "finding_files": [
+          "CHANGELOG.md"
+        ]
+      },
+      "metadata": {
+        "decision": "Behavior fix only. Contract unchanged. Changelog still names the last tag. Trivy is LOW only."
+      }
+    },
+    {
+      "inputs": {
+        "id": "no-tags-no-version",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": [],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## Unreleased\n\n- Initial bucket module.\n"
+          }
+        },
+        "compares": {}
+      },
+      "outputs": {
+        "interface_status": "pass",
+        "security_status": "pass",
+        "release_status": "not ready",
+        "suggested_version": "v1.0.0",
+        "finding_files": [
+          "CHANGELOG.md"
+        ]
+      },
+      "metadata": {
+        "decision": "No tags and no changelog version. First publish is v1.0.0 and not ready."
+      }
+    },
+    {
+      "inputs": {
+        "id": "public-bucket",
+        "repo": "fixture/mod",
+        "ref": "latest",
+        "tags": [
+          "v1.0.0"
+        ],
+        "files": {
+          "latest": {
+            "variables.tf": "variable \"bucket_name\" {\n  description = \"Name of the bucket.\"\n  type        = string\n}\n",
+            "outputs.tf": "output \"bucket_id\" {\n  description = \"ID of the bucket.\"\n  value       = aws_s3_bucket.this.id\n}\n",
+            "README.md": "# Object storage\n\n## Variables\n\n- bucket_name (string, required): Name of the bucket.\n\n## Outputs\n\n- bucket_id: ID of the bucket.\n",
+            "CHANGELOG.md": "# Changelog\n\n## 1.0.1\n\n- Allow public read on the bucket ACL.\n\n## 1.0.0\n\n- Initial bucket module.\n",
+            "main.tf": "resource \"aws_kms_key\" \"this\" {\n  description             = \"Encrypts objects in the bucket.\"\n  deletion_window_in_days = 7\n  enable_key_rotation     = true\n}\n\nresource \"aws_s3_bucket\" \"this\" {\n  bucket = var.bucket_name\n  acl    = \"public-read\"\n}\n\nresource \"aws_s3_bucket_server_side_encryption_configuration\" \"this\" {\n  bucket = aws_s3_bucket.this.id\n  rule {\n    apply_server_side_encryption_by_default {\n      kms_master_key_id = aws_kms_key.this.arn\n      sse_algorithm     = \"aws:kms\"\n    }\n    bucket_key_enabled = true\n  }\n}\n\nresource \"aws_s3_bucket_versioning\" \"this\" {\n  bucket = aws_s3_bucket.this.id\n  versioning_configuration {\n    status = \"Enabled\"\n  }\n}\n"
+          }
+        },
+        "compares": {
+          "v1.0.0...latest": "status: ahead\nahead_by: 1\nfiles:\n- main.tf (modified)\n\n--- main.tf\n  bucket = var.bucket_name\n+  acl    = \"public-read\"\nThe variable and output contract is unchanged.\n"
+        }
+      },
+      "outputs": {
+        "interface_status": "pass",
+        "security_status": "fail",
+        "release_status": "ready",
+        "suggested_version": "v1.0.1",
+        "finding_files": [
+          "main.tf"
+        ]
+      },
+      "metadata": {
+        "decision": "Bucket ACL is public-read. Keep the Trivy HIGH findings and drop LOW logging. Changelog is ready for a patch."
+      }
+    }
+  ],
+  "description": "One frozen Terraform module per example. Reference outputs are the publish decision: interface status, security status, release status, suggested version, and the files that should have findings. Finding sentences are not reference outputs."
+}

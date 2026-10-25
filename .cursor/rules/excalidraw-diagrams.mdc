@@ -1,0 +1,51 @@
+---
+description: Author and revise Excalidraw scenes beside the document that uses them. Use when creating, versioning, or editing a diagram.
+globs: "**/*.excalidraw"
+alwaysApply: false
+---
+
+# Excalidraw diagrams
+
+The `.excalidraw` file sits next to the document that embeds the picture. The design document uses `part1/langsmith-deployment.excalidraw`. The deck uses the scenes in `present/assets/`. `langsmith-deployment.excalidraw` is used in both places, so that scene is duplicated. Copy an edit onto both files before exporting. Earlier versions stay in `plans/diagrams/`.
+
+The user opens a scene at http://localhost:8080 and exports `.excalidraw` back over the same path.
+
+```bash
+docker run -d -p 8080:80 --name my-excalidraw-instance excalidraw/excalidraw:latest
+```
+
+The image listens on container port 80.
+
+## Check the picture
+
+After a create or edit, run `./scripts/export-diagrams.sh`, read the PNG, and fix what it shows. Repeat until the picture is clean. The JSON stays the file to edit.
+
+The script writes the PNG beside the scene. A scene in `part1/` or `present/` is also copied into `deliverables/`. A scene under `plans/` is not.
+
+The exporter draws text in the hand-drawn font, not Helvetica. Fix overlap and clipping. Do not restyle the scene to match that font.
+
+## Revisions
+
+- Patch by stable element `id`. Do not regenerate a scene the user has saved.
+- A new version is a new file (`name-v2.excalidraw`). Leave the previous file untouched.
+- Do not write the version into the frame name or any other canvas text.
+
+## Layout
+
+Use Helvetica (`fontFamily` 2). Keep each column only as wide as its longest line. Stack lists one item per line.
+
+- Purpose note above each agent: fill `#e7f5ff`, `strokeWidth` 0, no arrow.
+- Card under the step: `prompt` and the filename on one line, then `tools`, then `output`. One tool or state field per line. `none` is `#868e96`.
+- Output rows sit on `#b2f2bb`.
+- Excalidraw has no bold. Draw a label twice, 0.7px apart.
+- A branch is a `diamond` with yes and no arrows, not a flat list.
+- Something that is not a step (a sample repo) has `frameId` null and no arrows.
+- Mission text is a top callout: fill `#fff4e6`, roughness 0, left bar `#e8590c`.
+
+## Legend
+
+Swatches, not a sentence: `#a5d8ff` agent, `#ffec99` placeholder, `#ffd8a8` human gate, `#e9ecef` start and end, `#b2f2bb` output.
+
+## Ids
+
+Use readable ids (`node-diff`, `card-diff`, `text-card-diff-tool-1`, `diamond-ready`). Keep arrow bindings and `boundElements` in sync. Give new elements the next fractional `index` (`a0`…`az`, then `b00`).

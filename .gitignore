@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.DS_Store
+terraform-aws-object-storage/
+.langgraph_api/
+.~lock.*
+
+/plan
