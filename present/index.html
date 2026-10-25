@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>InnovateCorp |  LangSmith Self-hosted</title>
   <link rel="icon" href="favicon.ico" sizes="16x16">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://docs.langchain.com" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
   <style>
@@ -22,11 +20,32 @@
       --dark: #030710;
       --on-dark: #ffffff;
       --on-dark-muted: rgba(255, 255, 255, 0.68);
-      --font: "Instrument Sans", Tahoma, sans-serif;
+      --font: "TWK Lausanne", Tahoma, sans-serif;
+    }
+
+    /* LangChain's brand face. Docs hosts the cuts with open CORS, so the deck does not vendor the files. */
+    @font-face {
+      font-family: "TWK Lausanne";
+      src: url("https://docs.langchain.com/fonts/TWKLausanne-300.woff2") format("woff2");
+      font-weight: 300;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "TWK Lausanne";
+      src: url("https://docs.langchain.com/fonts/TWKLausanne-400.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
     }
 
     .reveal {
+      --r-main-font: var(--font);
+      --r-heading-font: var(--font);
+      --r-heading-font-weight: 300;
       font-family: var(--font);
+      font-synthesis: none;
       color: var(--ink);
       background: var(--bg);
     }
@@ -39,7 +58,7 @@
       box-sizing: border-box;
       height: 100%;
       padding: 52px 72px 48px;
-      font-weight: 400;
+      font-weight: 300;
       line-height: 1.4;
     }
 
@@ -67,8 +86,8 @@
     .reveal h2,
     .reveal h3 {
       margin: 0;
-      font-weight: 400;
-      letter-spacing: -0.035em;
+      font-weight: 300;
+      letter-spacing: -0.03em;
       line-height: 1.05;
       color: var(--ink);
     }
@@ -101,7 +120,7 @@
       margin: 0 0 14px;
       color: var(--blue-deep);
       font-size: 16px;
-      font-weight: 500;
+      font-weight: 300;
       letter-spacing: 0.01em;
     }
 
@@ -195,7 +214,7 @@
       margin: 0 0 22px;
       color: var(--blue);
       font-size: 15px;
-      font-weight: 500;
+      font-weight: 300;
       letter-spacing: 0.18em;
     }
 
@@ -252,8 +271,8 @@
     .card h3 {
       margin-bottom: 10px;
       font-size: 24px;
-      font-weight: 500;
-      letter-spacing: -0.025em;
+      font-weight: 300;
+      letter-spacing: -0.02em;
     }
 
     .split p,
@@ -285,7 +304,7 @@
       background: #d9edff;
       color: var(--blue-deep);
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 400;
       letter-spacing: 0.03em;
       line-height: 1.5;
       vertical-align: 2px;
