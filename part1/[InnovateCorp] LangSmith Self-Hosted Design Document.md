@@ -20,7 +20,7 @@ InnovateCorp already has established operations for managed Kubernetes for its o
 
 Agent workloads remain on the existing infrastructure and submit traces to this platform. Hosting those agents on LangSmith is described under Future Considerations.
 
-The installation is a production deployment. Durable data is held in managed services outside the cluster. Those services are configured for high availability, and recovery from a regional failure is part of the design.
+The installation is a production deployment. Durable data is held in managed services outside the cluster. Those services stay in `us-west2` and keep serving if one zone fails.
 
 Staff sign in through InnovateCorp's OIDC provider, and agents authenticate with API keys.
 
@@ -45,16 +45,31 @@ The additional infrastructure is:
 - The agent server pods that make up the data plane, scheduled on the existing GKE cluster.
 - A default StorageClass backed by the GCE persistent disk provisioner, for volumes those agent servers request.
 
-
-The Cloud SQL instance deployed for the initial phase also holds short-term and long-term memory for the hosted agents. Redis and the Cloud Storage buckets deployed for the initial phase continue to serve this feature.
-
 \pagebreak
 
 ### Deployment Architecture
 
-The platform uses `us-west2` as its primary region. A dedicated VPC in that region holds the GKE cluster and the managed databases. Where a Google Cloud product offers a multi-region configuration, this design uses it. Payload and attachment storage is a multi-region `us` bucket. The SmithDB bucket remains a single-region bucket in `us-west2`, because SmithDB requires that placement. Private nodes reach Cloud Storage without public addresses.
+The platform runs in one region, `us-west2`. A VPC in that region holds the GKE cluster and the managed databases. Private nodes reach Cloud Storage without public addresses.
+
+Live data stays in `us-west2`, in the same region as the cluster.
+
+| Store | What Google Cloud supports | This design |
+| --- | --- | --- |
+| Cloud SQL | The database runs in one region. High availability adds a standby in a second zone of that region. | Regional high availability in `us-west2`. The database keeps serving if one zone fails. |
+| Redis | Basic tier runs in one zone. Standard tier keeps a replica in another zone of the same region and fails over to it. | Standard tier in `us-west2`. The queue keeps serving if one zone fails. |
+| Cloud Storage | A bucket can be one zone, one region, two specific regions, or a multi-region such as `us`. A zonal bucket is only for Rapid storage. A regional bucket is copied across the zones of that region. A multi-region bucket is copied across regions that Google chooses, and every read is charged as data leaving the bucket. | Both buckets are regional, in `us-west2`. |
+
+Both buckets are regional because the cluster that reads them is in one region, and a regional bucket already survives a zone failure.
+
+If `us-west2` is down, the cluster, Cloud SQL, and Redis are down with it. A bucket in another region would not keep the platform running. Recovery is a restore from backup after the region is available again.
+
+\pagebreak
+
+#### Architecture Diagram
 
 ![Deployment architecture in us-west2](langsmith-deployment.png)
+
+\pagebreak
 
 | Component | Purpose |
 | --- | --- |
@@ -66,12 +81,8 @@ The platform uses `us-west2` as its primary region. A dedicated VPC in that regi
 | Cloud SQL, PostgreSQL 18 | Platform database. Stores organizations, users, projects, API keys, datasets, experiments, and the Chat database. |
 | Cloud SQL, PostgreSQL 18 | SmithDB metastore. Stores the catalog that records where trace data has been written. This instance is separate from the platform database. |
 | Redis | Holds the ingest queue, the short-lived cache used by the platform, and Chat's queue data. |
-| SmithDB GCS bucket | Holds the durable copy of traces and feedback. Retention is applied by compaction. Objects in this bucket are not expired by a storage lifecycle rule. |
-| Blob GCS bucket | Holds large payloads and attachments in a multi-region `us` bucket. Short-lived objects expire after 14 days, and long-lived objects expire after 400 days. |
-
-Cloud SQL and Redis use private addresses on the VPC. Nodes reach Cloud Storage through Private Google Access. Pods authenticate to Cloud Storage with Workload Identity.
-
-Both Cloud SQL instances run PostgreSQL 18, the newest major version Cloud SQL offers, and both are configured for regional high availability. Redis is configured for Standard high availability. The metastore stays on its own instance because SmithDB requires an empty database, separate from the platform database. Recovery from a loss of the region is a restore from backup in `us-west2`. Trace durability depends on the SmithDB object bucket and the metastore backup. The local disk used by SmithDB is a cache and is rebuilt when a pod reads data again.
+| SmithDB GCS bucket | Holds the durable copy of traces and feedback in a regional bucket in `us-west2`. Retention is applied by compaction. Objects in this bucket are not expired by a storage lifecycle rule. |
+| Blob GCS bucket | Holds large payloads and attachments in a regional bucket in `us-west2`. Short-lived objects expire after 14 days, and long-lived objects expire after 400 days. |
 
 \pagebreak
 
@@ -79,7 +90,7 @@ Both Cloud SQL instances run PostgreSQL 18, the newest major version Cloud SQL o
 
 The initial deployment is sized for approximately 20 concurrent users of the interface and a steady rate of approximately 100 traces per second, with bursts toward 1,000 traces per second. These are the sizes for a standard production install. SmithDB uses the medium configuration, which is intended for approximately 100 ingest requests per second and 40 query requests per second.
 
-Further growth is absorbed first by the autoscaling ranges below. When those ranges stay saturated, the installation moves to the larger production size. That size is for approximately 50 concurrent users and approximately 1,000 traces per second. SmithDB then uses the large configuration, intended for approximately 1,000 ingest requests per second and 100 query requests per second. The services and the SmithDB nodes are resized together.
+Further growth is absorbed first by the autoscaling ranges below. When those ranges stay saturated, the installation moves to the larger production size. That size is for approximately 50 concurrent users and approximately 1,000 traces per second.
 
 Stateless application services scale when CPU utilization reaches 50 percent or memory utilization reaches 80 percent. The queue and ingest-queue services are also watched for work waiting in Redis. A persistent backlog there is the reason to add those workers.
 
@@ -94,28 +105,24 @@ Stateless application services scale when CPU utilization reaches 50 percent or 
 | playground | 1 to 5 | 2 to 10 | Use of the playground and of model-graded evaluators increases. |
 | ace-backend | 1 to 5 | 2 to 10 | The number of custom evaluation runs increases. |
 
-Published scale guidance for this same workload recommends 16 backend replicas and 6 ingest-queue replicas. The initial production size limits the backend service to 10 replicas. Sustained operation at that limit, or a persistent ingest backlog, is the condition for moving to the larger production size.
+The initial production size limits the backend service to 10 replicas. Sustained operation at that limit, or a persistent ingest backlog, is the condition for moving to the larger production size.
 
-Query, ingestion, and the compaction workers run on the cache pool and scale independently, up to 10 replicas. A medium compaction worker requests 16 CPU, 32 GB of memory, and 100 GB of cache. A large worker requests 28 CPU, 50 GB of memory, and 300 GB of cache. The cache nodes below have the CPU and the local SSD for those requests.
-
-The compaction scheduler and the cluster manager run on the compute pool and stay at one replica. The scheduler requests 4 CPU and 8 GB at the medium size, and 8 CPU and 16 GB at the large size. The cluster manager requests a fraction of one CPU at medium and 2 CPU at large. The compute pool stays at the module default for those two pods: `n2-standard-8` for the initial deployment and `n2-standard-16` at the larger production size.
+#### Sizing
 
 | SmithDB component | Initial deployment, medium | Larger production size |
 | --- | --- | --- |
-| query, ingestion, compaction worker | 1, 1, and 1, on the cache pool | 4, 2, and 4, on the cache pool |
-| compaction scheduler and cluster manager | 1 and 1, on the compute pool, with no autoscaler | 1 and 1, on the compute pool, with no autoscaler |
 | Cache nodes | `n2-standard-32` (32 vCPU, 128 GB), 4 local SSDs, up to 3 nodes per zone | `n2-standard-64` (64 vCPU, 256 GB), 8 local SSDs, up to 3 nodes per zone |
 | Compute nodes | `n2-standard-8` (8 vCPU, 32 GB), up to 3 nodes per zone | `n2-standard-16` (16 vCPU, 64 GB), up to 3 nodes per zone |
-| Metastore | `db-custom-6-32768` (6 vCPU, 32 GB), 50 GB disk floor | `db-custom-10-65536` (10 vCPU, 64 GB) |
+| Metastore | `db-n1-standard-8` (8 vCPU, 30 GB), 50 GB disk floor, regional high availability | `db-custom-10-65536` (10 vCPU, 64 GB), regional high availability |
 
-The general node pool uses `e2-standard-4` (4 vCPU, 16 GB). It starts at 2 nodes per zone and can grow to 10 nodes per zone when application pods cannot be scheduled. The machine type stays the same at the larger production size. If those larger pods cannot be placed, the maximum node count is raised before the machine type is changed.
+The general node pool uses `e2-standard-4` (4 vCPU, 16 GB). It starts at 2 nodes per zone and can grow to 10 nodes per zone when application pods cannot be scheduled. 
 
 | Store | Initial deployment | Later growth |
 | --- | --- | --- |
-| Platform Cloud SQL | `db-custom-2-8192` (2 vCPU, 8 GB), 50 GB, regional high availability | Remains at this machine size as trace volume grows. Disk may increase as metadata accumulates. |
-| Redis | 13 GB, Standard high availability | Increases to 26 GB as ingest approaches 1,000 traces per second. |
-| SmithDB bucket | Single region, with no object expiry | Grows with the volume of traces retained. Compaction reclaims data that has passed its retention period. |
-| Blob bucket | Multi-region `us`, with expiry at 14 days and 400 days | Grows with payload size, then lifecycle rules remove expired objects. |
+| Platform Cloud SQL | `db-custom-2-8192` (2 vCPU, 8 GB), 50 GB, regional high availability in `us-west2` | Remains at this machine size as trace volume grows. Disk may increase as metadata accumulates. |
+| Redis | 13 GB, Standard tier in `us-west2` | Increases to 26 GB as ingest approaches 1,000 traces per second. |
+| SmithDB bucket | Regional `us-west2`, with no object expiry | Grows with the volume of traces retained. Compaction reclaims data that has passed its retention period. |
+| Blob bucket | Regional `us-west2`, with expiry at 14 days and 400 days | Grows with payload size, then lifecycle rules remove expired objects. |
 | SmithDB local SSD | Cache on the cache-pool nodes | Rebuilt from the SmithDB bucket after a pod is replaced. It is not part of the backup. |
 
 \pagebreak
