@@ -21,6 +21,12 @@ The completed submission assets.
 - `langsmith-deployment.png` is the deployment diagram used in the design document and the deck.
 - `module-review-v4.png` is the agent diagram used in the deck.
 
+## `present/`
+
+The stakeholder presentation, built with [Reveal.js](https://revealjs.com/).
+
+`index.html` is the deck. Diagram scenes live in `assets/` next to the pictures the slides use: `langsmith-deployment.excalidraw` and `module-review-v4.excalidraw`. Lockups are the SVG files in that same folder. Exporting the deck writes `deliverables/presentation.pdf`.
+
 ## `part1/`
 
 Source for the design document.
@@ -71,11 +77,9 @@ docker run --rm -it \
 
 The run asks before it opens a pull request.
 
-## `present/`
+## `demo/`
 
-The stakeholder presentation, built with [Reveal.js](https://revealjs.com/).
-
-`index.html` is the deck. Diagram scenes live in `assets/` next to the pictures the slides use: `langsmith-deployment.excalidraw` and `module-review-v4.excalidraw`. Lockups are the SVG files in that same folder. Exporting the deck writes `deliverables/presentation.pdf`.
+Directory holding some of the demo video transition content as well as the .gif generation for the "Agent in Action" link above.
 
 ## `details.md`
 
