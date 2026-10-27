@@ -246,6 +246,8 @@ def build_graph(model, reader: Reader, checkpointer=_DEFAULT_SAVER, open_pr=open
     held: dict = {}
     allowed: dict = {"files": set()}
     interface_tools, interface_seen = build_interface_tools(reader)
+
+    # Agent Builds
     interface_agent = build_interface(model, interface_tools, [HideReadFile(interface_seen)])
     security_agent = build_security(model, build_security_tools(reader))
     release_agent = build_release(
@@ -277,6 +279,7 @@ def build_graph(model, reader: Reader, checkpointer=_DEFAULT_SAVER, open_pr=open
         )
         return run_gate(state, answer, open_pr)
 
+    # Graph Builds
     graph = StateGraph(State)
     graph.add_node("check", check)
     graph.add_node("interface", interface)
@@ -295,6 +298,8 @@ def build_graph(model, reader: Reader, checkpointer=_DEFAULT_SAVER, open_pr=open
     graph.add_edge("release", "recommend")
     graph.add_edge("recommend", "gate")
     graph.add_edge("gate", END)
+
+    # LangGraph dev hook - did not use this
     if checkpointer is _DEFAULT_SAVER:
         checkpointer = InMemorySaver()
     return graph.compile(

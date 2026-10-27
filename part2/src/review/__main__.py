@@ -27,7 +27,10 @@ def main() -> None:
     # Candidate code is the latest branch. main is not used.
     ref = os.environ.get("GITHUB_CANDIDATE_REF", "latest")
     reader = GithubReader(repo)
+
+    # Main graph for the review process
     app = build_graph(load_model(model_name), reader)
+    
     config = {"configurable": {"thread_id": "review"}}
     console = make_console()
     show_header(console, repo, ref)

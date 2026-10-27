@@ -408,6 +408,52 @@
       border: 0;
       box-shadow: none;
     }
+
+    /* Landscape diagram. Title shares a row with the logo so the picture can use the rest of the slide. */
+    .reveal .slides section.present.built-slide {
+      display: grid !important;
+      grid-template-columns: auto 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
+      align-items: center;
+      column-gap: 18px;
+      row-gap: 10px;
+      padding: 16px 28px 12px;
+    }
+
+    .built-slide .logo {
+      grid-column: 1;
+      grid-row: 1;
+      width: 108px;
+    }
+
+    .built-slide .slide-main,
+    .built-slide .built {
+      display: contents;
+    }
+
+    .built-copy {
+      grid-column: 2;
+      grid-row: 1;
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+    }
+
+    .built-copy .kicker {
+      margin: 0;
+    }
+
+    .reveal .slides section.built-slide h2 {
+      margin: 0;
+      font-size: 32px;
+    }
+
+    .built-slide .diagram {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      min-height: 0;
+      height: 100%;
+    }
   </style>
 </head>
 <body>
@@ -480,6 +526,7 @@
               <li>Agents stay where they are and send traces to LangSmith.</li>
               <li>Durable data sits in managed services, outside the cluster.</li>
               <li>A standard install now. Hosted agents come later.</li>
+              <li>Do not need per-team or per-environment isolation.</li>
             </ul>
           </div>
           <aside class="notes">
@@ -579,7 +626,7 @@
           <div class="slide-main">
             <p class="index"></p>
             <h2>Agent Development: <br> Terraform Module Review</h2>
-            <p class="lede">A module review that stops before it opens a pull request.</p>
+            <p class="lede">Assisting with Terraform Module release readiness.</p>
           </div>
           <aside class="notes">
             The domain is publishing a Terraform module. The slowdown is a README, a changelog, or a security finding that does not match the code. Default repo is straubt1/terraform-aws-object-storage. The picture is assets/module-review-v4.png. The scene is assets/module-review-v4.excalidraw.
@@ -590,16 +637,18 @@
           <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
           <div class="slide-main">
             <p class="kicker">Agents</p>
-            <h2>What Was Built</h2>
+            <h2>Why This Agent Was Built</h2>
             <ul class="points">
-              <li>The work is a Terraform module that is ready to publish.</li>
-              <li>Interface, security, and release read the repo in parallel.</li>
-              <li>Recommend drafts the files and the pull request.</li>
-              <li>A person answers yes or no before a Pull Request is created.</li>
+              <li>100's of Terraform Modules, developed across many teams.</li>
+              <li>Module Interface is critical for user adoption.</li>
+              <li>Improper versioning and changelog can lead to unexpected behavior.</li>
+              <li>We need to ensure that modules are easy to use and secure.</li>
             </ul>
           </div>
           <aside class="notes">
-            Interface compares generated Terraform docs with the README. Security runs Trivy and keeps HIGH and CRITICAL. Release reads the latest tag and the diff, then names the next version. Recommend edits at most ten of the files those findings named. Check has no model. A missing ref ends the run.
+            <p>aa</p>
+            <p>aa</p>
+            <p>aa</p>
           </aside>
         </section>
 
@@ -717,7 +766,7 @@
             <ul class="points">
               <li>The eval stops at the human gate so the pull request is never scored.</li>
               <li>Agent development mistakes cost tokens and time.</li>
-              <li>Starting with Evaluations and Experiments would have been better.</li>
+              <li>Start earlier with Evaluations and Experiments.</li>
             </ul>
           </div>
           <aside class="notes">
@@ -728,7 +777,7 @@
         <section class="slide content" data-background-color="#f2faff">
           <img class="logo" src="assets/langchain-lockup-black.svg" alt="LangChain">
           <div class="slide-main">
-            <p class="kicker">Friction</p>
+            <p class="kicker">Friction Log</p>
             <h2>What we would ask for</h2>
             <ul class="points">
               <li>Ability to set max tokens and interrupt.</li>
